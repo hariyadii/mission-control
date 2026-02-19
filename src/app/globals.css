@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-0: #060b19;
+  --bg-1: #0b1222;
+  --bg-2: #111a2f;
+  --text-main: #e7edff;
+  --text-muted: #98a4c6;
+  --line: rgba(173, 190, 255, 0.2);
+  --glass: rgba(13, 19, 36, 0.72);
+  --glass-soft: rgba(15, 23, 43, 0.58);
+  --alex-start: #6d5bff;
+  --alex-end: #8a4dff;
+  --sam-start: #12cfd0;
+  --sam-end: #0ea5c6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text-main);
+  font-family: "Sora", "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 8% -10%, rgba(109, 91, 255, 0.22), transparent 40%),
+    radial-gradient(circle at 92% 0%, rgba(18, 207, 208, 0.2), transparent 36%),
+    linear-gradient(165deg, var(--bg-0) 0%, var(--bg-1) 45%, var(--bg-2) 100%);
+}
+
+a {
+  color: inherit;
+}
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen;
+  }
+
+  .content-wrap {
+    @apply flex-1 overflow-y-auto p-6 md:p-8;
+  }
+
+  .page-header {
+    @apply mb-7 flex flex-wrap items-end justify-between gap-4;
+  }
+
+  .page-title {
+    @apply m-0 text-2xl font-semibold tracking-tight text-slate-100 md:text-3xl;
+  }
+
+  .page-subtitle {
+    @apply m-0 text-sm text-[color:var(--text-muted)];
+  }
+
+  .panel-glass {
+    @apply rounded-2xl border border-white/10 bg-[color:var(--glass)] shadow-[0_10px_40px_rgba(4,10,30,0.35)] backdrop-blur-xl;
+  }
+
+  .panel-soft {
+    @apply rounded-xl border border-white/10 bg-[color:var(--glass-soft)] backdrop-blur-md;
+  }
+
+  .input-glass {
+    @apply w-full rounded-xl border border-white/15 bg-slate-900/60 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-indigo-300/55 focus:ring-2 focus:ring-indigo-400/25;
+  }
+
+  .btn-primary {
+    @apply rounded-xl border border-indigo-300/30 bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_24px_rgba(109,91,255,0.25)] transition duration-200 hover:scale-[1.01] hover:shadow-[0_0_30px_rgba(109,91,255,0.38)] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secondary {
+    @apply rounded-xl border border-white/15 bg-slate-800/75 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-indigo-300/40 hover:bg-slate-700/80;
+  }
+
+  .btn-danger {
+    @apply rounded-xl border border-rose-400/40 bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/35;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium text-slate-300 transition;
+  }
+
+  .nav-link:hover {
+    @apply border-white/15 bg-slate-800/55 text-slate-100;
+  }
+
+  .nav-link-active {
+    @apply border-indigo-300/40 bg-indigo-500/20 text-indigo-100 shadow-[0_0_24px_rgba(109,91,255,0.25)];
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold;
+  }
+
+  .badge-alex {
+    @apply border-violet-300/45 bg-violet-500/20 text-violet-200;
+  }
+
+  .badge-sam {
+    @apply border-cyan-300/45 bg-cyan-500/20 text-cyan-200;
+  }
+
+  .badge-me {
+    @apply border-indigo-300/45 bg-indigo-500/20 text-indigo-200;
+  }
+
+  .badge-legacy {
+    @apply border-slate-300/30 bg-slate-600/30 text-slate-300;
+  }
+}
+
+.sidebar {
+  width: 240px;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 74px !important;
+  }
+
+  .sidebar-label,
+  .sidebar-title,
+  .sidebar-subtitle {
+    display: none !important;
+  }
+
+  .content-wrap {
+    padding: 1rem !important;
+  }
+}
+
+@media (max-width: 920px) {
+  .kanban-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .task-form-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .office-desks {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+}
