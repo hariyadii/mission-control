@@ -9,6 +9,7 @@ const links = [
   { href: "/memory", label: "Memory", icon: "◎" },
   { href: "/team", label: "Team", icon: "◉" },
   { href: "/office", label: "Office", icon: "⌘" },
+  { href: "/control", label: "Control", icon: "⚙" },
 ];
 
 export default function Sidebar() {

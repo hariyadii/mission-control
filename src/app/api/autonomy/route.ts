@@ -1,7 +1,9 @@
 import { ConvexHttpClient } from "convex/browser";
 import { NextResponse } from "next/server";
+import { exec as execCallback } from "node:child_process";
 import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { promisify } from "node:util";
 
 import { api } from "../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../convex/_generated/dataModel";
@@ -34,8 +36,36 @@ const WORKSPACE_ROOT = "/home/ubuntu/.openclaw/workspace";
 const EXECUTIONS_DIR = `${WORKSPACE_ROOT}/autonomy/executions`;
 const PLUGIN_OUTPUT_DIR = `${WORKSPACE_ROOT}/autonomy/plugins`;
 const EXECUTOR_RUN_LOG_FILE = `${WORKSPACE_ROOT}/autonomy/metrics/executor-runs.jsonl`;
+const POLICY_FILE = `${WORKSPACE_ROOT}/autonomy/policy.json`;
+const EXTERNAL_ACTION_LOG_FILE = `${WORKSPACE_ROOT}/autonomy/metrics/external-actions.jsonl`;
 const CRON_JOBS_FILE = "/home/ubuntu/.openclaw/cron/jobs.json";
 const MAX_GUARDRAIL_PER_RUN = 3;
+const exec = promisify(execCallback);
+
+type ExternalRisk = "low" | "medium" | "high";
+type AutonomyPolicy = {
+  killSwitch: boolean;
+  allowHighRiskExternalActions: boolean;
+  external: {
+    maxActionsPerDay: number;
+    xMode: string;
+  };
+  capitalLane: {
+    mode: string;
+  };
+};
+
+const DEFAULT_AUTONOMY_POLICY: AutonomyPolicy = {
+  killSwitch: false,
+  allowHighRiskExternalActions: true,
+  external: {
+    maxActionsPerDay: 100,
+    xMode: "browse",
+  },
+  capitalLane: {
+    mode: "paper",
+  },
+};
 
 const RISKY_KEYWORDS = [
   "delete",
@@ -114,6 +144,84 @@ async function writeTextFile(path: string, content: string): Promise<string> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content, "utf8");
   return path;
+}
+
+async function loadPolicy(): Promise<AutonomyPolicy> {
+  try {
+    const raw = await readFile(POLICY_FILE, "utf8");
+    const parsed = JSON.parse(raw) as Partial<AutonomyPolicy>;
+    return {
+      killSwitch: typeof parsed.killSwitch === "boolean" ? parsed.killSwitch : DEFAULT_AUTONOMY_POLICY.killSwitch,
+      allowHighRiskExternalActions:
+        typeof parsed.allowHighRiskExternalActions === "boolean"
+          ? parsed.allowHighRiskExternalActions
+          : DEFAULT_AUTONOMY_POLICY.allowHighRiskExternalActions,
+      external: {
+        maxActionsPerDay:
+          typeof parsed.external?.maxActionsPerDay === "number" && parsed.external.maxActionsPerDay > 0
+            ? Math.floor(parsed.external.maxActionsPerDay)
+            : DEFAULT_AUTONOMY_POLICY.external.maxActionsPerDay,
+        xMode: typeof parsed.external?.xMode === "string" ? parsed.external.xMode : DEFAULT_AUTONOMY_POLICY.external.xMode,
+      },
+      capitalLane: {
+        mode:
+          typeof parsed.capitalLane?.mode === "string"
+            ? parsed.capitalLane.mode
+            : DEFAULT_AUTONOMY_POLICY.capitalLane.mode,
+      },
+    };
+  } catch {
+    await mkdir(dirname(POLICY_FILE), { recursive: true });
+    await writeFile(POLICY_FILE, `${JSON.stringify(DEFAULT_AUTONOMY_POLICY, null, 2)}\n`, "utf8");
+    return DEFAULT_AUTONOMY_POLICY;
+  }
+}
+
+async function countExternalActionsToday(): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const raw = await readFile(EXTERNAL_ACTION_LOG_FILE, "utf8");
+    return raw
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .reduce((count, line) => {
+        try {
+          const parsed = JSON.parse(line) as { timestamp?: string };
+          return typeof parsed.timestamp === "string" && parsed.timestamp.startsWith(today) ? count + 1 : count;
+        } catch {
+          return count;
+        }
+      }, 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function appendExternalActionLog(entry: Record<string, unknown>): Promise<void> {
+  await mkdir(dirname(EXTERNAL_ACTION_LOG_FILE), { recursive: true });
+  await appendFile(EXTERNAL_ACTION_LOG_FILE, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+async function enforceExternalActionPolicy(risk: ExternalRisk): Promise<AutonomyPolicy> {
+  const policy = await loadPolicy();
+  if (policy.killSwitch) {
+    throw new Error("autonomy kill switch is enabled");
+  }
+  if (risk === "high" && !policy.allowHighRiskExternalActions) {
+    throw new Error("high risk external actions are disabled by policy");
+  }
+  const actionsToday = await countExternalActionsToday();
+  if (actionsToday >= policy.external.maxActionsPerDay) {
+    throw new Error(`external action limit reached (${policy.external.maxActionsPerDay}/day)`);
+  }
+  return policy;
+}
+
+async function runCommand(cmd: string): Promise<string> {
+  const { stdout, stderr } = await exec(cmd, { cwd: WORKSPACE_ROOT, maxBuffer: 5 * 1024 * 1024, shell: "/bin/bash" });
+  const output = `${stdout}${stderr ? `\n${stderr}` : ""}`.trim();
+  return output;
 }
 
 function isRiskyOrVague(task: TaskDoc): string | null {
@@ -326,6 +434,60 @@ async function pluginTicketTriagePlaybook(ctx: PluginContext): Promise<PluginRes
   };
 }
 
+async function pluginXScout(ctx: PluginContext): Promise<PluginResult> {
+  const policy = await enforceExternalActionPolicy("medium");
+  if (policy.external.xMode !== "browse") {
+    throw new Error(`x_scout requires external.xMode=browse, got ${policy.external.xMode}`);
+  }
+
+  const timelineCommand = "x timeline | head -n 120";
+  const searchCommand = 'x search "ai automation agents" Latest | head -n 120';
+  const [timelineOutput, searchOutput] = await Promise.all([runCommand(timelineCommand), runCommand(searchCommand)]);
+
+  const slug = safeSlug(ctx.task.title);
+  const outPath = `${PLUGIN_OUTPUT_DIR}/x-scout-${slug}.md`;
+  const content = [
+    "# X Scout Report",
+    "",
+    `Generated at: ${ctx.timestamp}`,
+    `Worker: ${ctx.worker}`,
+    `Task: ${ctx.task.title}`,
+    "",
+    "## Command 1",
+    `\`${timelineCommand}\``,
+    "",
+    "```text",
+    timelineOutput || "(no output)",
+    "```",
+    "",
+    "## Command 2",
+    `\`${searchCommand}\``,
+    "",
+    "```text",
+    searchOutput || "(no output)",
+    "```",
+    "",
+  ].join("\n");
+
+  const written = await writeTextFile(outPath, content);
+  await appendExternalActionLog({
+    timestamp: new Date().toISOString(),
+    plugin: "x_scout",
+    risk: "medium",
+    status: "success",
+    taskId: String(ctx.task._id),
+    title: ctx.task.title,
+    commands: [timelineCommand, searchCommand],
+    reportPath: written,
+  });
+
+  return {
+    pluginId: "x_scout",
+    notes: ["Collected X timeline + targeted search results and wrote scout report."],
+    files: [written],
+  };
+}
+
 async function pluginDefault(ctx: PluginContext): Promise<PluginResult> {
   const slug = safeSlug(ctx.task.title);
   const outPath = `${PLUGIN_OUTPUT_DIR}/execution-note-${slug}.md`;
@@ -378,6 +540,14 @@ const EXECUTOR_PLUGINS: ExecutorPlugin[] = [
       return t.includes("ticket") && t.includes("triage");
     },
     run: pluginTicketTriagePlaybook,
+  },
+  {
+    id: "x_scout",
+    match: (task) => {
+      const t = normalizeTitle(task.title);
+      return t.includes("x scout") || t.includes("x com") || t.includes("twitter") || t.includes("trend") || t.includes("meme");
+    },
+    run: pluginXScout,
   },
 ];
 
