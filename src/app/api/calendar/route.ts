@@ -48,7 +48,13 @@ function describeSchedule(schedule?: CronJobRaw["schedule"]): string {
 export async function GET() {
   try {
     const raw = fs.readFileSync("/home/ubuntu/.openclaw/cron/jobs.json", "utf-8");
-    const rawJobs: CronJobRaw[] = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as CronJobRaw[] | { jobs?: CronJobRaw[] };
+    const rawJobs: CronJobRaw[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed.jobs)
+        ? parsed.jobs
+        : [];
+
     const jobs = rawJobs.map((job, i) => ({
       id: job.id ?? `job-${i}`,
       name: job.name ?? job.id ?? `Job ${i + 1}`,
