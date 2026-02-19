@@ -476,6 +476,37 @@ async function runWorker(client: ConvexHttpClient, requestedAssignee: unknown, r
   };
 }
 
+
+async function collectPluginMetrics() {
+  const counts: Record<string, number> = {};
+  let totalExecutions = 0;
+
+  let files: string[] = [];
+  try {
+    files = (await readdir(EXECUTIONS_DIR)).filter((f) => f.endsWith(".md"));
+  } catch {
+    files = [];
+  }
+
+  for (const file of files) {
+    try {
+      const raw = await readFile(`${EXECUTIONS_DIR}/${file}`, "utf8");
+      const match = raw.match(/^- Plugin:\s*(.+)$/m);
+      const plugin = match?.[1]?.trim() || "unknown";
+      counts[plugin] = (counts[plugin] ?? 0) + 1;
+      totalExecutions += 1;
+    } catch {
+      // ignore unreadable execution files
+    }
+  }
+
+  const byPlugin = Object.entries(counts)
+    .map(([plugin, count]) => ({ plugin, count }))
+    .sort((a, b) => b.count - a.count || a.plugin.localeCompare(b.plugin));
+
+  return { totalExecutions, byPlugin };
+}
+
 async function runStatus(client: ConvexHttpClient) {
   const allTasks = await loadAllTasks(client);
 
@@ -497,12 +528,15 @@ async function runStatus(client: ConvexHttpClient) {
     byAssignee[task.assigned_to] += 1;
   }
 
+  const pluginMetrics = await collectPluginMetrics();
+
   return {
     ok: true,
     action: "status" as const,
     total: allTasks.length,
     byStatus,
     byAssignee,
+    pluginMetrics,
   };
 }
 

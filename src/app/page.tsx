@@ -1,10 +1,47 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
+
+type PluginMetric = { plugin: string; count: number };
+type AutonomyStatus = {
+  pluginMetrics?: {
+    totalExecutions: number;
+    byPlugin: PluginMetric[];
+  };
+};
+
 export default function Home() {
   const tasks = useQuery(api.tasks.list);
+
+  const [autonomy, setAutonomy] = useState<AutonomyStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAutonomy = async () => {
+      try {
+        const res = await fetch("/api/autonomy", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "status" }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as AutonomyStatus;
+        if (!cancelled) setAutonomy(data);
+      } catch {
+        // ignore temporary API/network issues
+      }
+    };
+
+    void loadAutonomy();
+    const id = setInterval(loadAutonomy, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const suggested = (tasks ?? []).filter((t) => t.status === "suggested").length;
   const backlog = (tasks ?? []).filter((t) => t.status === "backlog").length;
@@ -40,6 +77,39 @@ export default function Home() {
             <p className="m-0 mt-2 text-3xl font-semibold text-slate-100">{tasks ? stat.value : "..."}</p>
           </div>
         ))}
+      </section>
+
+
+      <section className="panel-glass p-6">
+        <h2 className="m-0 text-lg font-semibold text-slate-100">Autonomy Plugin Metrics</h2>
+        <p className="m-0 mt-1 text-sm text-[color:var(--text-muted)]">Execution plugin usage from autonomous worker artifacts.</p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="panel-soft p-4">
+            <p className="m-0 text-xs uppercase tracking-[0.18em] text-slate-400">Total Executions</p>
+            <p className="m-0 mt-2 text-3xl font-semibold text-slate-100">{autonomy?.pluginMetrics?.totalExecutions ?? "..."}</p>
+          </div>
+          <div className="panel-soft p-4">
+            <p className="m-0 text-xs uppercase tracking-[0.18em] text-slate-400">Top Plugin</p>
+            <p className="m-0 mt-2 text-lg font-semibold text-slate-100">
+              {autonomy?.pluginMetrics?.byPlugin?.[0]
+                ? `${autonomy.pluginMetrics.byPlugin[0].plugin} (${autonomy.pluginMetrics.byPlugin[0].count})`
+                : "No executions yet"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {(autonomy?.pluginMetrics?.byPlugin ?? []).slice(0, 6).map((item) => (
+            <div key={item.plugin} className="panel-soft flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-slate-200">{item.plugin}</span>
+              <span className="badge badge-sam">{item.count}</span>
+            </div>
+          ))}
+          {(autonomy?.pluginMetrics?.byPlugin ?? []).length === 0 && (
+            <div className="panel-soft p-4 text-sm text-slate-400">No plugin execution metrics yet.</div>
+          )}
+        </div>
       </section>
 
       <section className="panel-glass p-6">
