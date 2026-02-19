@@ -9,9 +9,31 @@ type PluginMetric = { plugin: string; count: number };
 type AutonomyStatus = {
   pluginMetrics?: {
     totalExecutions: number;
-    byPlugin: PluginMetric[];
+    byPlugin: Array<{
+      plugin: string;
+      runs: number;
+      success: number;
+      failed: number;
+      successRate: number;
+      avgDurationMs: number;
+      lastRunAt: string | null;
+      sparkline: number[];
+    }>;
   };
 };
+
+function formatDuration(durationMs: number): string {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return "-";
+  if (durationMs < 1000) return `${durationMs}ms`;
+  return `${(durationMs / 1000).toFixed(1)}s`;
+}
+
+function formatTimestamp(value: string | null | undefined): string {
+  if (!value) return "-";
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return "-";
+  return new Date(parsed).toLocaleString();
+}
 
 export default function Home() {
   const tasks = useQuery(api.tasks.list);
@@ -93,7 +115,7 @@ export default function Home() {
             <p className="m-0 text-xs uppercase tracking-[0.18em] text-slate-400">Top Plugin</p>
             <p className="m-0 mt-2 text-lg font-semibold text-slate-100">
               {autonomy?.pluginMetrics?.byPlugin?.[0]
-                ? `${autonomy.pluginMetrics.byPlugin[0].plugin} (${autonomy.pluginMetrics.byPlugin[0].count})`
+                ? `${autonomy.pluginMetrics.byPlugin[0].plugin} (${autonomy.pluginMetrics.byPlugin[0].runs})`
                 : "No executions yet"}
             </p>
           </div>
@@ -101,9 +123,30 @@ export default function Home() {
 
         <div className="mt-4 space-y-2">
           {(autonomy?.pluginMetrics?.byPlugin ?? []).slice(0, 6).map((item) => (
-            <div key={item.plugin} className="panel-soft flex items-center justify-between px-4 py-3">
-              <span className="text-sm text-slate-200">{item.plugin}</span>
-              <span className="badge badge-sam">{item.count}</span>
+            <div key={item.plugin} className="panel-soft px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-200">{item.plugin}</span>
+                <span className="badge badge-sam">{item.runs}</span>
+              </div>
+              <div className="mt-2 grid gap-2 text-xs text-slate-300 sm:grid-cols-3">
+                <span>Success {item.success} / Failed {item.failed} ({item.successRate.toFixed(1)}%)</span>
+                <span>Avg Duration {formatDuration(item.avgDurationMs)}</span>
+                <span>Last Run {formatTimestamp(item.lastRunAt)}</span>
+              </div>
+              <div className="mt-2 flex h-6 items-end gap-1">
+                {item.sparkline.map((value, idx) => {
+                  const max = Math.max(...item.sparkline, 1);
+                  const height = Math.max(3, Math.round((value / max) * 22));
+                  return (
+                    <div
+                      key={`${item.plugin}-spark-${idx}`}
+                      className="w-2 rounded-sm bg-cyan-300/70"
+                      style={{ height }}
+                      title={`Day ${idx + 1}: ${value} run(s)`}
+                    />
+                  );
+                })}
+              </div>
             </div>
           ))}
           {(autonomy?.pluginMetrics?.byPlugin ?? []).length === 0 && (

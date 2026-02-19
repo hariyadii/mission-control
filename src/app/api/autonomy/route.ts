@@ -1,6 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 import { NextResponse } from "next/server";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { api } from "../../../../convex/_generated/api";
@@ -33,6 +33,7 @@ type ExecutorPlugin = {
 const WORKSPACE_ROOT = "/home/ubuntu/.openclaw/workspace";
 const EXECUTIONS_DIR = `${WORKSPACE_ROOT}/autonomy/executions`;
 const PLUGIN_OUTPUT_DIR = `${WORKSPACE_ROOT}/autonomy/plugins`;
+const EXECUTOR_RUN_LOG_FILE = `${WORKSPACE_ROOT}/autonomy/metrics/executor-runs.jsonl`;
 const CRON_JOBS_FILE = "/home/ubuntu/.openclaw/cron/jobs.json";
 const MAX_GUARDRAIL_PER_RUN = 3;
 
@@ -380,6 +381,24 @@ const EXECUTOR_PLUGINS: ExecutorPlugin[] = [
   },
 ];
 
+type RunStatus = "success" | "failed";
+type WorkerRunLogEntry = {
+  timestamp: string;
+  plugin: string;
+  status: RunStatus;
+  durationMs: number;
+  worker: Assignee;
+  taskId: string;
+  title: string;
+};
+
+type LegacyExecutionEntry = {
+  timestamp: string;
+  plugin: string;
+  taskId: string;
+  title: string;
+};
+
 function makeExecutionMarkdown(task: TaskDoc, worker: Assignee, timestamp: string, plugin: PluginResult): string {
   const description = task.description?.trim() ? task.description : "No description provided.";
   return [
@@ -410,6 +429,21 @@ function makeExecutionMarkdown(task: TaskDoc, worker: Assignee, timestamp: strin
   ].join("\n");
 }
 
+async function appendExecutorRunLog(entry: WorkerRunLogEntry): Promise<void> {
+  await mkdir(dirname(EXECUTOR_RUN_LOG_FILE), { recursive: true });
+  await appendFile(EXECUTOR_RUN_LOG_FILE, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+async function appendFailureNote(client: ConvexHttpClient, task: TaskDoc, errorMessage: string, timestamp: string): Promise<void> {
+  const previousDescription = task.description?.trim() ?? "";
+  const failureNote = `Worker failure (${timestamp}): ${errorMessage}`;
+  const newDescription = previousDescription ? `${previousDescription}\n\n${failureNote}` : failureNote;
+  await client.mutation(api.tasks.updateTask, {
+    id: task._id,
+    description: newDescription,
+  });
+}
+
 async function runWorker(client: ConvexHttpClient, requestedAssignee: unknown, requestedMax: unknown) {
   const maxToProcess = asPositiveInt(requestedMax, 1, 1);
   const assignee = normalizeAssignee(requestedAssignee, "agent");
@@ -434,11 +468,49 @@ async function runWorker(client: ConvexHttpClient, requestedAssignee: unknown, r
 
   await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "in_progress" });
 
-  const timestamp = new Date().toISOString();
+  const runStartedAt = Date.now();
+  const timestamp = new Date(runStartedAt).toISOString();
   const plugin = EXECUTOR_PLUGINS.find((p) => p.match(selected));
-  const pluginResult = plugin
-    ? await plugin.run({ task: selected, allTasks, worker: assignee, timestamp })
-    : await pluginDefault({ task: selected, allTasks, worker: assignee, timestamp });
+  const pluginId = plugin?.id ?? "default_executor";
+  let pluginResult: PluginResult;
+
+  try {
+    pluginResult = plugin
+      ? await plugin.run({ task: selected, allTasks, worker: assignee, timestamp })
+      : await pluginDefault({ task: selected, allTasks, worker: assignee, timestamp });
+  } catch (error) {
+    const durationMs = Date.now() - runStartedAt;
+    const errorMessage = error instanceof Error ? error.message : "unknown plugin execution error";
+
+    await appendExecutorRunLog({
+      timestamp: new Date().toISOString(),
+      plugin: pluginId,
+      status: "failed",
+      durationMs,
+      worker: assignee,
+      taskId: String(selected._id),
+      title: selected.title,
+    }).catch(() => undefined);
+
+    await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "backlog" });
+    await appendFailureNote(client, selected, errorMessage, new Date().toISOString());
+
+    return {
+      ok: true,
+      action: "worker" as const,
+      worker: assignee,
+      processed: 0,
+      failed: 1,
+      message: "plugin_execution_failed",
+      task: {
+        id: selected._id,
+        title: selected.title,
+        plugin: pluginId,
+        finishedStatus: "backlog" as const,
+      },
+      error: errorMessage,
+    };
+  }
 
   const artifactPath = `${EXECUTIONS_DIR}/${selected._id}.md`;
   const markdown = makeExecutionMarkdown(selected, assignee, timestamp, pluginResult);
@@ -458,6 +530,15 @@ async function runWorker(client: ConvexHttpClient, requestedAssignee: unknown, r
   });
 
   await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "done" });
+  await appendExecutorRunLog({
+    timestamp: new Date().toISOString(),
+    plugin: pluginResult.pluginId,
+    status: "success",
+    durationMs: Date.now() - runStartedAt,
+    worker: assignee,
+    taskId: String(selected._id),
+    title: selected.title,
+  }).catch(() => undefined);
 
   return {
     ok: true,
@@ -478,9 +559,42 @@ async function runWorker(client: ConvexHttpClient, requestedAssignee: unknown, r
 
 
 async function collectPluginMetrics() {
-  const counts: Record<string, number> = {};
-  let totalExecutions = 0;
+  const logs: WorkerRunLogEntry[] = [];
+  try {
+    const raw = await readFile(EXECUTOR_RUN_LOG_FILE, "utf8");
+    const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean);
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line) as Partial<WorkerRunLogEntry>;
+        if (
+          typeof parsed.timestamp === "string" &&
+          typeof parsed.plugin === "string" &&
+          (parsed.status === "success" || parsed.status === "failed") &&
+          typeof parsed.durationMs === "number" &&
+          typeof parsed.worker === "string" &&
+          typeof parsed.taskId === "string" &&
+          typeof parsed.title === "string"
+        ) {
+          logs.push({
+            timestamp: parsed.timestamp,
+            plugin: parsed.plugin,
+            status: parsed.status,
+            durationMs: parsed.durationMs,
+            worker: normalizeAssignee(parsed.worker),
+            taskId: parsed.taskId,
+            title: parsed.title,
+          });
+        }
+      } catch {
+        // ignore malformed json lines
+      }
+    }
+  } catch {
+    // no logs yet
+  }
 
+  const successfulTaskIds = new Set(logs.filter((r) => r.status === "success").map((r) => r.taskId));
+  const legacyEntries: LegacyExecutionEntry[] = [];
   let files: string[] = [];
   try {
     files = (await readdir(EXECUTIONS_DIR)).filter((f) => f.endsWith(".md"));
@@ -489,22 +603,109 @@ async function collectPluginMetrics() {
   }
 
   for (const file of files) {
+    const taskId = file.replace(/\.md$/i, "");
+    if (successfulTaskIds.has(taskId)) continue;
     try {
       const raw = await readFile(`${EXECUTIONS_DIR}/${file}`, "utf8");
-      const match = raw.match(/^- Plugin:\s*(.+)$/m);
-      const plugin = match?.[1]?.trim() || "unknown";
-      counts[plugin] = (counts[plugin] ?? 0) + 1;
-      totalExecutions += 1;
+      const pluginMatch = raw.match(/^- Plugin:\s*(.+)$/m);
+      const titleMatch = raw.match(/^# Execution:\s*(.+)$/m);
+      const timestampMatch = raw.match(/^- Timestamp \(UTC\):\s*(.+)$/m);
+      legacyEntries.push({
+        timestamp: timestampMatch?.[1]?.trim() || new Date(0).toISOString(),
+        plugin: pluginMatch?.[1]?.trim() || "unknown",
+        taskId,
+        title: titleMatch?.[1]?.trim() || taskId,
+      });
     } catch {
       // ignore unreadable execution files
     }
   }
 
-  const byPlugin = Object.entries(counts)
-    .map(([plugin, count]) => ({ plugin, count }))
-    .sort((a, b) => b.count - a.count || a.plugin.localeCompare(b.plugin));
+  const allRuns: WorkerRunLogEntry[] = [
+    ...logs,
+    ...legacyEntries.map((entry) => ({
+      timestamp: entry.timestamp,
+      plugin: entry.plugin,
+      status: "success" as const,
+      durationMs: 0,
+      worker: "agent" as const,
+      taskId: entry.taskId,
+      title: entry.title,
+    })),
+  ];
 
-  return { totalExecutions, byPlugin };
+  const today = new Date();
+  const dayStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const daySlots = Array.from({ length: 7 }, (_, idx) => {
+    const d = new Date(dayStart);
+    d.setUTCDate(dayStart.getUTCDate() - (6 - idx));
+    return d.toISOString().slice(0, 10);
+  });
+  const slotIndexByDate = new Map(daySlots.map((date, idx) => [date, idx]));
+
+  const byPluginMap = new Map<
+    string,
+    {
+      plugin: string;
+      runs: number;
+      success: number;
+      failed: number;
+      durationTotalMs: number;
+      durationCount: number;
+      lastRunAt: string | null;
+      sparkline: number[];
+    }
+  >();
+
+  for (const run of allRuns) {
+    const current = byPluginMap.get(run.plugin) ?? {
+      plugin: run.plugin,
+      runs: 0,
+      success: 0,
+      failed: 0,
+      durationTotalMs: 0,
+      durationCount: 0,
+      lastRunAt: null,
+      sparkline: [0, 0, 0, 0, 0, 0, 0],
+    };
+
+    current.runs += 1;
+    if (run.status === "success") current.success += 1;
+    if (run.status === "failed") current.failed += 1;
+    if (run.durationMs > 0) {
+      current.durationTotalMs += run.durationMs;
+      current.durationCount += 1;
+    }
+
+    const runTime = Date.parse(run.timestamp);
+    if (!Number.isNaN(runTime)) {
+      if (!current.lastRunAt || runTime > Date.parse(current.lastRunAt)) {
+        current.lastRunAt = new Date(runTime).toISOString();
+      }
+      const dateKey = new Date(runTime).toISOString().slice(0, 10);
+      const slotIndex = slotIndexByDate.get(dateKey);
+      if (slotIndex !== undefined) {
+        current.sparkline[slotIndex] += 1;
+      }
+    }
+
+    byPluginMap.set(run.plugin, current);
+  }
+
+  const byPlugin = Array.from(byPluginMap.values())
+    .map((item) => ({
+      plugin: item.plugin,
+      runs: item.runs,
+      success: item.success,
+      failed: item.failed,
+      successRate: item.runs > 0 ? Number(((item.success / item.runs) * 100).toFixed(1)) : 0,
+      avgDurationMs: item.durationCount > 0 ? Math.round(item.durationTotalMs / item.durationCount) : 0,
+      lastRunAt: item.lastRunAt,
+      sparkline: item.sparkline,
+    }))
+    .sort((a, b) => b.runs - a.runs || a.plugin.localeCompare(b.plugin));
+
+  return { totalExecutions: allRuns.length, byPlugin };
 }
 
 async function runStatus(client: ConvexHttpClient) {
