@@ -10,7 +10,7 @@ import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 
 type Assignee = "me" | "alex" | "sam" | "lyra" | "agent";
 type Status = "suggested" | "backlog" | "in_progress" | "done";
-type Action = "guardrail" | "worker" | "claim" | "complete" | "status";
+type Action = "guardrail" | "worker" | "claim" | "heartbeat" | "complete" | "status";
 type TaskDoc = Doc<"tasks">;
 
 type PluginContext = {
@@ -39,7 +39,22 @@ const EXECUTOR_RUN_LOG_FILE = `${WORKSPACE_ROOT}/autonomy/metrics/executor-runs.
 const POLICY_FILE = `${WORKSPACE_ROOT}/autonomy/policy.json`;
 const EXTERNAL_ACTION_LOG_FILE = `${WORKSPACE_ROOT}/autonomy/metrics/external-actions.jsonl`;
 const CRON_JOBS_FILE = "/home/ubuntu/.openclaw/cron/jobs.json";
-const MAX_GUARDRAIL_PER_RUN = 3;
+const MAX_GUARDRAIL_PER_RUN = 5;
+const WIP_CAP_BY_ASSIGNEE: Record<Assignee, number> = {
+  me: 1,
+  alex: 1,
+  sam: 2,
+  lyra: 2,
+  agent: 1,
+};
+const LEASE_MINUTES_BY_ASSIGNEE: Record<Assignee, number> = {
+  me: 45,
+  alex: 45,
+  sam: 45,
+  lyra: 75,
+  agent: 45,
+};
+const RETRY_BACKOFF_MINUTES = [15, 60, 240];
 const exec = promisify(execCallback);
 
 type ExternalRisk = "low" | "medium" | "high";
@@ -282,10 +297,18 @@ async function runGuardrail(client: ConvexHttpClient, requestedMax: unknown) {
       .filter(Boolean)
   );
 
+  const activeLoadByAssignee: Record<Assignee, number> = { me: 0, alex: 0, sam: 0, lyra: 0, agent: 0 };
+  for (const task of allTasks) {
+    if (task.status === "backlog" || task.status === "in_progress") {
+      activeLoadByAssignee[task.assigned_to] += 1;
+    }
+  }
+
   const suggested = sortOldestFirst(allTasks.filter((task) => task.status === "suggested")).slice(0, maxToProcess);
 
   const accepted: Array<{ id: Id<"tasks">; title: string }> = [];
   const rejected: Array<{ id: Id<"tasks">; title: string; reason: string }> = [];
+  const deferred: Array<{ id: Id<"tasks">; title: string; reason: string }> = [];
 
   for (const task of suggested) {
     const normalized = normalizeTitle(task.title);
@@ -304,8 +327,16 @@ async function runGuardrail(client: ConvexHttpClient, requestedMax: unknown) {
       continue;
     }
 
+    const cap = WIP_CAP_BY_ASSIGNEE[task.assigned_to] ?? 1;
+    const active = activeLoadByAssignee[task.assigned_to] ?? 0;
+    if (active >= cap) {
+      deferred.push({ id: task._id, title: task.title, reason: "capacity_full" });
+      continue;
+    }
+
     await client.mutation(api.tasks.updateStatus, { id: task._id, status: "backlog" });
     duplicateBlocklist.add(normalized);
+    activeLoadByAssignee[task.assigned_to] = active + 1;
     accepted.push({ id: task._id, title: task.title });
   }
 
@@ -315,6 +346,8 @@ async function runGuardrail(client: ConvexHttpClient, requestedMax: unknown) {
     processed: suggested.length,
     accepted,
     rejected,
+    deferred,
+    acceptancePolicy: "0..5 (>=1 only if quality+capacity allows)",
     reasons: rejected.map(({ id, reason }) => ({ id, reason })),
   };
 }
@@ -1312,8 +1345,27 @@ async function runStatus(client: ConvexHttpClient) {
 async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
   const assignee = normalizeAssignee(requestedAssignee, "agent");
   const allTasks = await loadAllTasks(client);
-  const backlog = sortOldestFirst(allTasks.filter((t) => t.status === "backlog"));
 
+  // Resume owned in-progress first (stateful continuation best-effort)
+  const inProgress = sortOldestFirst(allTasks.filter((t) => t.status === "in_progress" && t.assigned_to === assignee));
+  if (inProgress.length > 0) {
+    const resumed = inProgress[0];
+    return {
+      ok: true,
+      action: "claim" as const,
+      resumed: true,
+      task: {
+        id: String(resumed._id),
+        title: resumed.title,
+        description: resumed.description ?? "",
+        assigned_to: resumed.assigned_to,
+        status: resumed.status,
+        workflow_contract_version: "v2",
+      },
+    };
+  }
+
+  const backlog = sortOldestFirst(allTasks.filter((t) => t.status === "backlog"));
   let selected = backlog.find((t) => t.assigned_to === assignee);
   if (!selected && assignee === "sam") {
     selected = backlog.find((t) => t.assigned_to === "agent");
@@ -1328,17 +1380,73 @@ async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
   return {
     ok: true,
     action: "claim" as const,
+    resumed: false,
     task: {
       id: String(selected._id),
       title: selected.title,
       description: selected.description ?? "",
       assigned_to: selected.assigned_to,
       status: "in_progress" as const,
+      workflow_contract_version: "v2",
     },
   };
 }
 
-async function runComplete(client: ConvexHttpClient, taskId: unknown, output: unknown) {
+function extractArtifactPath(output: string): string | undefined {
+  const lines = output.split("\n").map((l) => l.trim());
+  const candidate = lines.find((line) => line.includes("/home/ubuntu/") || line.includes("/workspace"));
+  if (!candidate) return undefined;
+  const m = candidate.match(/(\/home\/ubuntu\/[\w\-./]+)/);
+  return m?.[1];
+}
+
+async function validateCompletion(taskTitle: string, artifactPath?: string): Promise<{ status: "pass" | "fail"; reason?: string }> {
+  if (!artifactPath) return { status: "fail", reason: "artifact_path_missing" };
+
+  try {
+    await readFile(artifactPath, "utf8");
+  } catch {
+    return { status: "fail", reason: "artifact_not_found" };
+  }
+
+  const title = taskTitle.toLowerCase();
+
+  // code/script validators
+  if (/(build|script|tool|pipeline|automation|parser|api)/.test(title)) {
+    if (artifactPath.endsWith(".sh")) {
+      try {
+        await runCommand(`bash -n "${artifactPath}"`);
+      } catch {
+        return { status: "fail", reason: "shell_syntax_error" };
+      }
+    }
+    if (artifactPath.endsWith(".py")) {
+      try {
+        await runCommand(`python3 -m py_compile "${artifactPath}"`);
+      } catch {
+        return { status: "fail", reason: "python_compile_error" };
+      }
+    }
+  }
+
+  // research validators
+  if (/(research|analysis|report|intelligence|study)/.test(title)) {
+    const content = await readFile(artifactPath, "utf8");
+    const sources = (content.match(/https?:\/\//g) ?? []).length;
+    if (content.length < 300) return { status: "fail", reason: "research_too_short" };
+    if (sources < 1) return { status: "fail", reason: "research_missing_sources" };
+  }
+
+  return { status: "pass" };
+}
+
+async function runComplete(
+  client: ConvexHttpClient,
+  taskId: unknown,
+  output: unknown,
+  requestedAssignee: unknown,
+  requestedArtifactPath: unknown
+) {
   if (!taskId || typeof taskId !== "string") {
     return { ok: false, error: "taskId is required" };
   }
@@ -1349,28 +1457,75 @@ async function runComplete(client: ConvexHttpClient, taskId: unknown, output: un
     return { ok: false, error: `task not found: ${taskId}` };
   }
 
+  const assignee = normalizeAssignee(requestedAssignee ?? task.assigned_to, task.assigned_to);
   const outputStr = typeof output === "string" ? output.trim() : "";
-  if (outputStr) {
-    const prev = task.description?.trim() ?? "";
-    const newDesc = prev
-      ? `${prev}\n\n---\n**Execution Output:**\n${outputStr}`
-      : `**Execution Output:**\n${outputStr}`;
-    await client.mutation(api.tasks.updateTask, { id: task._id, description: newDesc });
-  }
+  const artifactPath =
+    (typeof requestedArtifactPath === "string" && requestedArtifactPath.trim()) || extractArtifactPath(outputStr);
 
-  await client.mutation(api.tasks.updateStatus, { id: task._id, status: "done" });
+  const validation = await validateCompletion(task.title, artifactPath);
+
+  const prev = task.description?.trim() ?? "";
+  const completionBlock = [
+    "---",
+    "**Execution Output:**",
+    outputStr || "(no output)",
+    artifactPath ? `Artifact: ${artifactPath}` : "Artifact: (missing)",
+    `Validation: ${validation.status}${validation.reason ? ` (${validation.reason})` : ""}`,
+  ].join("\n");
+  const newDesc = prev ? `${prev}\n\n${completionBlock}` : completionBlock;
+
+  await client.mutation(api.tasks.updateTask, { id: task._id, description: newDesc });
+  await client.mutation(api.tasks.updateStatus, { id: task._id, status: validation.status === "pass" ? "done" : "backlog" });
 
   await appendExecutorRunLog({
     timestamp: new Date().toISOString(),
     plugin: "agent_executed",
-    status: "success",
+    status: validation.status === "pass" ? "success" : "failed",
     durationMs: 0,
-    worker: normalizeAssignee(task.assigned_to),
+    worker: assignee,
     taskId: String(task._id),
     title: task.title,
   }).catch(() => undefined);
 
-  return { ok: true, action: "complete" as const, taskId, title: task.title };
+  const retryTotal = validation.status === "pass" ? 0 : 1;
+  const nextBackoff = validation.status === "pass" ? 0 : RETRY_BACKOFF_MINUTES[0];
+
+  return {
+    ok: true,
+    action: "complete" as const,
+    taskId,
+    title: task.title,
+    resultStatus: validation.status === "pass" ? "done" : "backlog",
+    validation,
+    artifact_path: artifactPath,
+    retry_count_total: retryTotal,
+    recommended_backoff_minutes: nextBackoff,
+  };
+}
+
+async function runHeartbeat(client: ConvexHttpClient, taskId: unknown, requestedAssignee: unknown) {
+  if (!taskId || typeof taskId !== "string") {
+    return { ok: false, error: "taskId is required" };
+  }
+  const assignee = normalizeAssignee(requestedAssignee, "agent");
+  const allTasks = await loadAllTasks(client);
+  const task = allTasks.find((t) => String(t._id) === taskId);
+  if (!task) return { ok: false, action: "heartbeat" as const, reason: "not_found" };
+  if (task.status !== "in_progress") return { ok: false, action: "heartbeat" as const, reason: "not_in_progress" };
+  if (task.assigned_to !== assignee && !(assignee === "sam" && task.assigned_to === "agent")) {
+    return { ok: false, action: "heartbeat" as const, reason: "owner_mismatch" };
+  }
+
+  const prev = task.description?.trim() ?? "";
+  const marker = `Heartbeat: ${new Date().toISOString()} by ${assignee}`;
+  const newDesc = prev.includes("Heartbeat:") ? prev : `${prev}\n\n${marker}`.trim();
+  await client.mutation(api.tasks.updateTask, { id: task._id, description: newDesc });
+
+  return {
+    ok: true,
+    action: "heartbeat" as const,
+    lease_until: new Date(Date.now() + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString(),
+  };
 }
 
 export async function POST(request: Request) {
@@ -1399,11 +1554,22 @@ export async function POST(request: Request) {
       return NextResponse.json(result);
     }
 
+    if (action === "heartbeat") {
+      const result = await runHeartbeat(
+        client,
+        (body as Record<string, unknown>).taskId,
+        (body as Record<string, unknown>).assignee
+      );
+      return NextResponse.json(result);
+    }
+
     if (action === "complete") {
       const result = await runComplete(
         client,
         (body as Record<string, unknown>).taskId,
-        (body as Record<string, unknown>).output
+        (body as Record<string, unknown>).output,
+        (body as Record<string, unknown>).assignee,
+        (body as Record<string, unknown>).artifact_path
       );
       return NextResponse.json(result);
     }
