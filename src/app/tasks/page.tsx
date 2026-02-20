@@ -52,6 +52,38 @@ function assigneeClass(value: string) {
   return "badge badge-legacy";
 }
 
+const SAM_CORE_PLATFORM_KEYWORDS = [
+  "mission control",
+  "autonomy",
+  "workflow",
+  "guardrail",
+  "cron",
+  "control center",
+  "dashboard",
+  "api",
+  "task engine",
+  "execution",
+  "validator",
+  "lease",
+  "heartbeat",
+  "retry",
+  "schema",
+  "convex",
+  "plugin",
+  "pipeline",
+];
+
+function samScope(task: Pick<Task, "assigned_to" | "title" | "description">): "core" | "secondary" | null {
+  if (task.assigned_to !== "sam") return null;
+  const combined = `${task.title} ${task.description ?? ""}`.toLowerCase();
+  return SAM_CORE_PLATFORM_KEYWORDS.some((kw) => combined.includes(kw)) ? "core" : "secondary";
+}
+
+function scopeBadgeClass(scope: "core" | "secondary") {
+  if (scope === "core") return "rounded-full border border-cyan-300/45 bg-cyan-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-cyan-200";
+  return "rounded-full border border-amber-300/45 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-200";
+}
+
 function EditModal({
   task,
   onClose,
@@ -174,6 +206,11 @@ export default function TasksPage() {
         <div>
           <h1 className="page-title">Tasks</h1>
           <p className="page-subtitle">Kanban execution board with live Convex sync.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span>Sam scope badges:</span>
+            <span className={scopeBadgeClass("core")}>Core</span>
+            <span className={scopeBadgeClass("secondary")}>Secondary</span>
+          </div>
         </div>
       </header>
 
@@ -226,7 +263,9 @@ export default function TasksPage() {
             </div>
 
             <div className="space-y-2.5">
-              {grouped[col.key]?.map((task) => (
+              {grouped[col.key]?.map((task) => {
+                const scope = samScope(task);
+                return (
                 <article
                   key={task._id}
                   onClick={() => setEditingTask(task)}
@@ -237,6 +276,11 @@ export default function TasksPage() {
 
                   <div className="mt-3 flex items-center gap-1.5">
                     <span className={assigneeClass(task.assigned_to)}>{assigneeLabel(task.assigned_to)}</span>
+                    {scope && (
+                      <span className={scopeBadgeClass(scope)}>
+                        {scope === "core" ? "Core" : "Secondary"}
+                      </span>
+                    )}
                     <div className="ml-auto flex gap-1.5">
                       {task.status === "suggested" ? (
                         <>
@@ -302,7 +346,8 @@ export default function TasksPage() {
                     </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
 
               {(!grouped[col.key] || grouped[col.key].length === 0) && (
                 <div className="panel-soft p-6 text-center text-sm text-slate-400">No tasks</div>
