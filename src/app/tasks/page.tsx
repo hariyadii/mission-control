@@ -271,79 +271,86 @@ export default function TasksPage() {
                   onClick={() => setEditingTask(task)}
                   className="panel-soft cursor-pointer p-3 transition hover:border-indigo-300/40 hover:bg-slate-800/70"
                 >
-                  <p className="m-0 text-sm font-semibold text-slate-100">{task.title}</p>
-                  {task.description && <p className="m-0 mt-1.5 text-xs leading-relaxed text-[color:var(--text-muted)]">{task.description}</p>}
+                  <p className="m-0 line-clamp-2 text-sm font-semibold leading-snug text-slate-100">{task.title}</p>
+                  {task.description && (
+                    <p className="m-0 mt-1.5 line-clamp-3 text-xs leading-relaxed text-[color:var(--text-muted)]">
+                      {task.description}
+                    </p>
+                  )}
 
-                  <div className="mt-3 flex items-center gap-1.5">
+                  {/* Badges row */}
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     <span className={assigneeClass(task.assigned_to)}>{assigneeLabel(task.assigned_to)}</span>
                     {scope && (
                       <span className={scopeBadgeClass(scope)}>
                         {scope === "core" ? "Core" : "Secondary"}
                       </span>
                     )}
-                    <div className="ml-auto flex gap-1.5">
-                      {task.status === "suggested" ? (
-                        <>
+                  </div>
+
+                  {/* Action buttons row */}
+                  <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
+                    {task.status === "suggested" ? (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void updateStatus({ id: task._id, status: "backlog" });
+                          }}
+                          title="Approve into Backlog"
+                          className="btn-primary px-2.5 py-1 text-xs"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void removeTask({ id: task._id });
+                          }}
+                          title="Dismiss suggestion"
+                          className="btn-secondary px-2.5 py-1 text-xs"
+                        >
+                          Dismiss
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {["in_progress", "done"].includes(task.status) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              void updateStatus({ id: task._id, status: "backlog" });
+                              void moveTask(task, -1);
                             }}
-                            title="Approve into Backlog"
-                            className="btn-primary px-2.5 py-1 text-xs"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void removeTask({ id: task._id });
-                            }}
-                            title="Dismiss suggestion"
+                            title="Move left"
                             className="btn-secondary px-2.5 py-1 text-xs"
                           >
-                            Dismiss
+                            ←
                           </button>
-                        </>
-                      ) : (
-                        <>
-                          {["in_progress", "done"].includes(task.status) && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void moveTask(task, -1);
-                              }}
-                              title="Move left"
-                              className="btn-secondary px-2.5 py-1 text-xs"
-                            >
-                              ←
-                            </button>
-                          )}
-                          {["backlog", "in_progress"].includes(task.status) && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void moveTask(task, 1);
-                              }}
-                              title="Move right"
-                              className="btn-secondary px-2.5 py-1 text-xs"
-                            >
-                              →
-                            </button>
-                          )}
+                        )}
+                        {["backlog", "in_progress"].includes(task.status) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              void removeTask({ id: task._id });
+                              void moveTask(task, 1);
                             }}
-                            title="Delete"
-                            className="btn-danger"
+                            title="Move right"
+                            className="btn-secondary px-2.5 py-1 text-xs"
                           >
-                            Delete
+                            →
                           </button>
-                        </>
-                      )}
-                    </div>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void removeTask({ id: task._id });
+                          }}
+                          title="Delete"
+                          className="btn-danger"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </article>
                 );
