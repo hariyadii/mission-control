@@ -10,7 +10,7 @@ import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 
 type Assignee = "me" | "alex" | "sam" | "lyra" | "agent";
 type Status = "suggested" | "backlog" | "in_progress" | "done";
-type Action = "guardrail" | "worker" | "status";
+type Action = "guardrail" | "worker" | "claim" | "complete" | "status";
 type TaskDoc = Doc<"tasks">;
 
 type PluginContext = {
@@ -224,10 +224,25 @@ async function runCommand(cmd: string): Promise<string> {
   return output;
 }
 
+const TRADE_SIGNAL_PATTERNS = [
+  /^capital\s*:\s*\w+usdt\s+(long|short)/i,
+  /^(buy|sell|long|short)\s+(btc|eth|sol|bnb|xrp|doge|ada|btcusdt|ethusdt)/i,
+  /^open\s+(a\s+)?(long|short)\s+position/i,
+];
+
 function isRiskyOrVague(task: TaskDoc): string | null {
   const combined = `${task.title} ${task.description ?? ""}`.trim().toLowerCase();
   if (task.title.trim().length < 6) return "title_too_short";
   if (combined.split(/\s+/).filter(Boolean).length < 3) return "task_too_vague";
+
+  // Reject pure trade signal tasks (these should be automated by the capital plugin, not queued as missions)
+  for (const pattern of TRADE_SIGNAL_PATTERNS) {
+    if (pattern.test(task.title.trim())) return "trade_signal_not_mission";
+  }
+
+  // Reject tasks with no meaningful description (less than 10 words)
+  const descWords = (task.description ?? "").trim().split(/\s+/).filter(Boolean).length;
+  if (descWords < 8) return "description_too_short";
 
   for (const keyword of RISKY_KEYWORDS) {
     if (combined.includes(keyword)) return `risky_keyword:${keyword}`;
@@ -674,6 +689,158 @@ async function pluginXScout(ctx: PluginContext): Promise<PluginResult> {
   };
 }
 
+async function pluginLyraCapitalResearch(ctx: PluginContext): Promise<PluginResult> {
+  const notes: string[] = [];
+  const files: string[] = [];
+
+  // Fetch market data
+  const [btcRaw, fngRaw] = await Promise.allSettled([
+    runCommand('curl -s "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT"'),
+    runCommand('curl -s "https://api.alternative.me/fng/?limit=3"'),
+  ]);
+
+  let btcData: { lastPrice?: string; priceChangePercent?: string; volume?: string } = {};
+  let fngData: { data?: Array<{ value?: string; value_classification?: string }> } = {};
+  if (btcRaw.status === "fulfilled") { try { btcData = JSON.parse(btcRaw.value) as typeof btcData; } catch { /* ignore */ } }
+  if (fngRaw.status === "fulfilled") { try { fngData = JSON.parse(fngRaw.value) as typeof fngData; } catch { /* ignore */ } }
+
+  const currentPrice = Number(btcData.lastPrice ?? 0);
+  const change24h = Number(btcData.priceChangePercent ?? 0);
+  const fngValue = Number(fngData.data?.[0]?.value ?? 50);
+  const fngLabel = fngData.data?.[0]?.value_classification ?? "Neutral";
+
+  // Portfolio state
+  const statusRaw = await runCommand(
+    "curl -s -X POST http://localhost:3001/api/capital -H 'content-type: application/json' -d '{\"action\":\"status\"}'"
+  );
+  let statusData: { portfolio?: { positions?: unknown[]; totalEquity?: number; status?: string } } = {};
+  try { statusData = JSON.parse(statusRaw) as typeof statusData; } catch { /* ignore */ }
+
+  const openPositions = statusData.portfolio?.positions?.length ?? 0;
+  const totalEquity = statusData.portfolio?.totalEquity ?? 100000;
+  const portfolioStatus = statusData.portfolio?.status ?? "active";
+
+  // Simple signal engine
+  let shouldTrade = false;
+  let side: "long" | "short" = "long";
+  let confidence = 0;
+  let thesis = "";
+
+  if (portfolioStatus !== "halted" && openPositions < 2) {
+    // Long: extreme fear + slight recovery
+    if (fngValue < 30 && change24h > -2 && change24h < 6) {
+      shouldTrade = true; side = "long";
+      confidence = 0.70 + (30 - fngValue) / 200;
+      thesis = `BTC fear/greed at ${fngValue} (${fngLabel}), 24h change ${change24h.toFixed(2)}% — contrarian long in extreme fear.`;
+    }
+    // Short: extreme greed + overextended
+    else if (fngValue > 78 && change24h > 6) {
+      shouldTrade = true; side = "short";
+      confidence = 0.68 + (fngValue - 78) / 200;
+      thesis = `BTC fear/greed at ${fngValue} (${fngLabel}), 24h surge ${change24h.toFixed(2)}% — short overextension.`;
+    }
+  }
+
+  const reportLines: string[] = [
+    `# Capital Research: ${ctx.task.title}`,
+    `Generated: ${ctx.timestamp}`,
+    "",
+    "## Market Context",
+    `- BTC Price: $${currentPrice.toLocaleString()}`,
+    `- 24h Change: ${change24h.toFixed(2)}%`,
+    `- Fear/Greed: ${fngValue} (${fngLabel})`,
+    "",
+    "## Portfolio State",
+    `- Open Positions: ${openPositions}`,
+    `- Total Equity: $${totalEquity.toLocaleString()}`,
+    `- Portfolio Status: ${portfolioStatus}`,
+    "",
+    "## Signal Analysis",
+    `- Signal: ${shouldTrade ? `${side.toUpperCase()} (confidence ${confidence.toFixed(2)})` : "NO TRADE"}`,
+    `- Thesis: ${thesis || "No clear signal identified."}`,
+    "",
+    "## Decision",
+  ];
+
+  if (shouldTrade && confidence >= 0.75) {
+    // Get fresh price for trade
+    let entryPrice = currentPrice;
+    try {
+      const priceRaw = await runCommand('curl -s "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"');
+      const p = Number((JSON.parse(priceRaw) as { price?: string }).price);
+      if (p > 0) entryPrice = p;
+    } catch { /* use currentPrice */ }
+
+    const riskPct = 0.02;
+    const notional = totalEquity * 0.04;
+    const size = notional / entryPrice;
+    const stopLoss = side === "long" ? entryPrice * (1 - riskPct) : entryPrice * (1 + riskPct);
+    const takeProfit = side === "long" ? entryPrice * (1 + 2 * riskPct) : entryPrice * (1 - 2 * riskPct);
+
+    const tradePayload = JSON.stringify({ action: "trade", symbol: "BTCUSDT", side, entryPrice, size, stopLoss, takeProfit, thesis });
+    const tradeRaw = await runCommand(
+      `curl -s -X POST http://localhost:3001/api/capital -H 'content-type: application/json' -d '${tradePayload.replace(/'/g, "'\\''")}'`
+    );
+    let tradeOk = false;
+    try { tradeOk = (JSON.parse(tradeRaw) as { ok?: boolean }).ok === true; } catch { /* ignore */ }
+
+    reportLines.push(
+      `- Action: ${tradeOk ? "TRADE EXECUTED ✅" : "TRADE FAILED ❌"}`,
+      `- BTCUSDT ${side} @ $${entryPrice.toFixed(2)} | SL $${stopLoss.toFixed(2)} | TP $${takeProfit.toFixed(2)}`,
+    );
+    notes.push(`Research-driven ${side} signal (conf=${confidence.toFixed(2)}). Trade ${tradeOk ? "executed" : "failed"}.`);
+  } else {
+    const reason = !shouldTrade ? "No clear pattern" :
+      confidence < 0.75 ? `Low confidence (${confidence.toFixed(2)})` :
+      `Max positions or halted`;
+    reportLines.push(`- Action: PASS — ${reason}`);
+    notes.push(`No trade this cycle. Reason: ${reason}`);
+  }
+
+  const researchDir = "/home/ubuntu/.openclaw/workspace-lyra/research";
+  const slug = safeSlug(ctx.task.title);
+  const reportPath = `${researchDir}/capital-research-${ctx.timestamp.slice(0, 10)}-${slug}.md`;
+  await mkdir(researchDir, { recursive: true });
+  await writeFile(reportPath, reportLines.join("\n") + "\n", "utf8");
+  files.push(reportPath);
+
+  return { pluginId: "lyra_capital_research", notes, files };
+}
+
+async function pluginWebResearch(ctx: PluginContext): Promise<PluginResult> {
+  const query = ctx.task.title
+    .replace(/^(research|investigate|study|analyze|analyse|explore|gather|scrape)\s*/i, "")
+    .trim();
+
+  let searchOut = "(search unavailable)";
+  try {
+    searchOut = await runCommand(
+      `curl -s --max-time 10 "https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5" -H "Accept: application/json" 2>/dev/null`
+    );
+  } catch { /* ignore */ }
+
+  const slug = safeSlug(ctx.task.title);
+  const reportPath = `${PLUGIN_OUTPUT_DIR}/web-research-${slug}.md`;
+  const content = [
+    `# Web Research: ${ctx.task.title}`,
+    `Generated: ${ctx.timestamp}`,
+    `Query: ${query}`,
+    "",
+    "## Raw Search Output (truncated)",
+    "```",
+    searchOut.slice(0, 3000),
+    "```",
+    "",
+  ].join("\n");
+
+  const written = await writeTextFile(reportPath, content);
+  return {
+    pluginId: "web_research",
+    notes: [`Completed web research for: "${query}"`],
+    files: [written],
+  };
+}
+
 async function pluginDefault(ctx: PluginContext): Promise<PluginResult> {
   const slug = safeSlug(ctx.task.title);
   const outPath = `${PLUGIN_OUTPUT_DIR}/execution-note-${slug}.md`;
@@ -728,11 +895,32 @@ const EXECUTOR_PLUGINS: ExecutorPlugin[] = [
     run: pluginTicketTriagePlaybook,
   },
   {
+    id: "lyra_capital_research",
+    match: (task) => {
+      if (task.assigned_to !== "lyra") return false;
+      const t = normalizeTitle(task.title);
+      return (
+        (t.includes("capital") && (t.includes("research") || t.includes("analysis") || t.includes("intelligence"))) ||
+        t.includes("market research") ||
+        t.includes("market analysis") ||
+        t.includes("market intelligence") ||
+        t.includes("sentiment") ||
+        (t.includes("strategy") && t.includes("capital"))
+      );
+    },
+    run: pluginLyraCapitalResearch,
+  },
+  {
     id: "capital_paper_trade",
     match: (task) => {
       const t = normalizeTitle(task.title);
       const padded = ` ${t} `;
-      return t.includes("capital") || t.includes("paper trade") || padded.includes(" long ") || padded.includes(" short ");
+      const hasExplicitSignal =
+        /\b(btcusdt|ethusdt|solusdt|bnbusdt|xrpusdt|dogeusdt|adausdt|aapl|tsla|nvda|msft|amzn|spy|qqq)\b/.test(t) ||
+        padded.includes(" long ") ||
+        padded.includes(" short ") ||
+        t.includes("paper trade");
+      return hasExplicitSignal;
     },
     run: pluginCapitalPaperTrade,
   },
@@ -743,6 +931,20 @@ const EXECUTOR_PLUGINS: ExecutorPlugin[] = [
       return t.includes("x scout") || t.includes("x com") || t.includes("twitter") || t.includes("trend") || t.includes("meme");
     },
     run: pluginXScout,
+  },
+  {
+    id: "web_research",
+    match: (task) => {
+      const t = normalizeTitle(task.title);
+      return (
+        t.startsWith("research ") ||
+        t.includes("web research") ||
+        t.includes("investigate") ||
+        t.includes("gather data") ||
+        t.includes("scrape")
+      );
+    },
+    run: pluginWebResearch,
   },
 ];
 
@@ -1107,6 +1309,70 @@ async function runStatus(client: ConvexHttpClient) {
   };
 }
 
+async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
+  const assignee = normalizeAssignee(requestedAssignee, "agent");
+  const allTasks = await loadAllTasks(client);
+  const backlog = sortOldestFirst(allTasks.filter((t) => t.status === "backlog"));
+
+  let selected = backlog.find((t) => t.assigned_to === assignee);
+  if (!selected && assignee === "sam") {
+    selected = backlog.find((t) => t.assigned_to === "agent");
+  }
+
+  if (!selected) {
+    return { ok: true, action: "claim" as const, task: null, message: "no_matching_backlog_task" };
+  }
+
+  await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "in_progress" });
+
+  return {
+    ok: true,
+    action: "claim" as const,
+    task: {
+      id: String(selected._id),
+      title: selected.title,
+      description: selected.description ?? "",
+      assigned_to: selected.assigned_to,
+      status: "in_progress" as const,
+    },
+  };
+}
+
+async function runComplete(client: ConvexHttpClient, taskId: unknown, output: unknown) {
+  if (!taskId || typeof taskId !== "string") {
+    return { ok: false, error: "taskId is required" };
+  }
+
+  const allTasks = await loadAllTasks(client);
+  const task = allTasks.find((t) => String(t._id) === taskId);
+  if (!task) {
+    return { ok: false, error: `task not found: ${taskId}` };
+  }
+
+  const outputStr = typeof output === "string" ? output.trim() : "";
+  if (outputStr) {
+    const prev = task.description?.trim() ?? "";
+    const newDesc = prev
+      ? `${prev}\n\n---\n**Execution Output:**\n${outputStr}`
+      : `**Execution Output:**\n${outputStr}`;
+    await client.mutation(api.tasks.updateTask, { id: task._id, description: newDesc });
+  }
+
+  await client.mutation(api.tasks.updateStatus, { id: task._id, status: "done" });
+
+  await appendExecutorRunLog({
+    timestamp: new Date().toISOString(),
+    plugin: "agent_executed",
+    status: "success",
+    durationMs: 0,
+    worker: normalizeAssignee(task.assigned_to),
+    taskId: String(task._id),
+    title: task.title,
+  }).catch(() => undefined);
+
+  return { ok: true, action: "complete" as const, taskId, title: task.title };
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({} as Record<string, unknown>));
@@ -1124,6 +1390,20 @@ export async function POST(request: Request) {
         client,
         (body as Record<string, unknown>).assignee,
         (body as Record<string, unknown>).max
+      );
+      return NextResponse.json(result);
+    }
+
+    if (action === "claim") {
+      const result = await runClaim(client, (body as Record<string, unknown>).assignee);
+      return NextResponse.json(result);
+    }
+
+    if (action === "complete") {
+      const result = await runComplete(
+        client,
+        (body as Record<string, unknown>).taskId,
+        (body as Record<string, unknown>).output
       );
       return NextResponse.json(result);
     }
