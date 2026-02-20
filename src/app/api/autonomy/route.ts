@@ -1044,7 +1044,22 @@ async function appendFailureNote(client: ConvexHttpClient, task: TaskDoc, errorM
   });
 }
 
-async function runWorker(client: ConvexHttpClient, requestedAssignee: unknown, requestedMax: unknown) {
+async function runWorker(
+  client: ConvexHttpClient,
+  requestedAssignee: unknown,
+  requestedMax: unknown,
+  requestedAllowLegacy: unknown
+) {
+  const allowLegacy = requestedAllowLegacy === true || String(requestedAllowLegacy ?? "").toLowerCase() === "true";
+  if (!allowLegacy) {
+    return {
+      ok: false,
+      action: "worker" as const,
+      message: "legacy_worker_disabled_use_claim_heartbeat_complete",
+      hint: "Use action=claim -> action=heartbeat -> action=complete",
+    };
+  }
+
   const maxToProcess = asPositiveInt(requestedMax, 1, 1);
   const assignee = normalizeAssignee(requestedAssignee, "agent");
   const allTasks = await loadAllTasks(client);
@@ -1308,6 +1323,51 @@ async function collectPluginMetrics() {
   return { totalExecutions: allRuns.length, byPlugin };
 }
 
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  return sorted[mid];
+}
+
+async function collectRunLogStats() {
+  const now = Date.now();
+  const dayAgo = now - 24 * 60 * 60 * 1000;
+  const runDurations24h: number[] = [];
+  let doneLast24h = 0;
+
+  try {
+    const raw = await readFile(EXECUTOR_RUN_LOG_FILE, "utf8");
+    const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean);
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line) as Partial<WorkerRunLogEntry>;
+        if (
+          typeof parsed.timestamp === "string" &&
+          typeof parsed.durationMs === "number" &&
+          (parsed.status === "success" || parsed.status === "failed")
+        ) {
+          const ts = Date.parse(parsed.timestamp);
+          if (!Number.isNaN(ts) && ts >= dayAgo) {
+            if (parsed.status === "success") doneLast24h += 1;
+            if (parsed.durationMs > 0) runDurations24h.push(parsed.durationMs);
+          }
+        }
+      } catch {
+        // ignore malformed lines
+      }
+    }
+  } catch {
+    // no logs yet
+  }
+
+  return {
+    doneLast24h,
+    medianExecutionDurationMs: median(runDurations24h),
+  };
+}
+
 async function runStatus(client: ConvexHttpClient) {
   const allTasks = await loadAllTasks(client);
 
@@ -1331,6 +1391,22 @@ async function runStatus(client: ConvexHttpClient) {
   }
 
   const pluginMetrics = await collectPluginMetrics();
+  const runStats = await collectRunLogStats();
+
+  const activeTasks = allTasks.filter((t) => t.status !== "done");
+  const blockedSignals = allTasks.filter((t) => {
+    if (t.status === "done") return false;
+    const d = (t.description ?? "").toLowerCase();
+    return d.includes("validation: fail") || d.includes("stale_lease") || d.includes("blocked");
+  }).length;
+  const blockedRatio = activeTasks.length > 0 ? Number((blockedSignals / activeTasks.length).toFixed(3)) : 0;
+
+  const alerts: string[] = [];
+  if (blockedRatio > 0.15) alerts.push(`blocked_ratio_high:${(blockedRatio * 100).toFixed(1)}%`);
+  if (runStats.doneLast24h < 4) alerts.push(`done_per_day_low:${runStats.doneLast24h}`);
+  if (runStats.medianExecutionDurationMs > 20 * 60 * 1000) {
+    alerts.push(`median_cycle_time_high:${Math.round(runStats.medianExecutionDurationMs / 1000)}s`);
+  }
 
   return {
     ok: true,
@@ -1339,6 +1415,14 @@ async function runStatus(client: ConvexHttpClient) {
     byStatus,
     byAssignee,
     pluginMetrics,
+    workflowHealth: {
+      contractVersion: "v2",
+      targetAlertsTo: "alex",
+      doneLast24h: runStats.doneLast24h,
+      medianExecutionDurationMs: runStats.medianExecutionDurationMs,
+      blockedRatio,
+      alerts,
+    },
   };
 }
 
@@ -1544,7 +1628,8 @@ export async function POST(request: Request) {
       const result = await runWorker(
         client,
         (body as Record<string, unknown>).assignee,
-        (body as Record<string, unknown>).max
+        (body as Record<string, unknown>).max,
+        (body as Record<string, unknown>).allowLegacy
       );
       return NextResponse.json(result);
     }

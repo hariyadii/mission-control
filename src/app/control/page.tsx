@@ -16,10 +16,20 @@ type CronJob = {
   state?: { lastStatus?: string; nextRunAtMs?: number };
 };
 
+type WorkflowHealth = {
+  contractVersion: string;
+  targetAlertsTo: string;
+  doneLast24h: number;
+  medianExecutionDurationMs: number;
+  blockedRatio: number;
+  alerts: string[];
+};
+
 type ControlState = {
   policy: Policy;
   externalActionsToday: number;
   cronJobs: { jobs: CronJob[] };
+  workflowHealth?: WorkflowHealth;
 };
 
 const LOOP_NAMES = [
@@ -35,10 +45,23 @@ export default function ControlPage() {
   const [saving, setSaving] = useState(false);
 
   const refresh = async () => {
-    const res = await fetch("/api/control");
-    if (!res.ok) return;
-    const json = (await res.json()) as { policy: Policy; externalActionsToday: number; cron: { jobs: CronJob[] } };
-    setData({ policy: json.policy, externalActionsToday: json.externalActionsToday, cronJobs: json.cron });
+    const [controlRes, autonomyRes] = await Promise.all([
+      fetch("/api/control"),
+      fetch("/api/autonomy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "status" }),
+      }),
+    ]);
+    if (!controlRes.ok) return;
+    const json = (await controlRes.json()) as { policy: Policy; externalActionsToday: number; cron: { jobs: CronJob[] } };
+    const autonomy = autonomyRes.ok ? (await autonomyRes.json()) as { workflowHealth?: WorkflowHealth } : null;
+    setData({
+      policy: json.policy,
+      externalActionsToday: json.externalActionsToday,
+      cronJobs: json.cron,
+      workflowHealth: autonomy?.workflowHealth,
+    });
   };
 
   useEffect(() => {
@@ -116,6 +139,41 @@ export default function ControlPage() {
             </div>
           </article>
         ))}
+      </section>
+
+      <section className="panel-glass p-6">
+        <h2 className="m-0 text-lg font-semibold text-slate-100">Workflow Health (v2)</h2>
+        <p className="m-0 mt-1 text-sm text-slate-400">Alerts route: {data?.workflowHealth?.targetAlertsTo ?? "alex"}</p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="panel-soft p-3">
+            <p className="m-0 text-xs uppercase tracking-wide text-slate-400">Done / 24h</p>
+            <p className="m-0 mt-1 text-xl font-semibold text-slate-100">{data?.workflowHealth?.doneLast24h ?? 0}</p>
+          </div>
+          <div className="panel-soft p-3">
+            <p className="m-0 text-xs uppercase tracking-wide text-slate-400">Median Cycle</p>
+            <p className="m-0 mt-1 text-xl font-semibold text-slate-100">
+              {data?.workflowHealth?.medianExecutionDurationMs ? `${Math.round((data.workflowHealth.medianExecutionDurationMs || 0) / 1000)}s` : "0s"}
+            </p>
+          </div>
+          <div className="panel-soft p-3">
+            <p className="m-0 text-xs uppercase tracking-wide text-slate-400">Blocked Ratio</p>
+            <p className="m-0 mt-1 text-xl font-semibold text-slate-100">
+              {data?.workflowHealth ? `${(data.workflowHealth.blockedRatio * 100).toFixed(1)}%` : "0.0%"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-white/10 bg-slate-900/40 p-3">
+          <p className="m-0 text-xs uppercase tracking-wide text-slate-400">Active Alerts</p>
+          {(data?.workflowHealth?.alerts?.length ?? 0) > 0 ? (
+            <ul className="mt-2 list-disc pl-5 text-sm text-amber-300">
+              {data?.workflowHealth?.alerts?.map((a) => <li key={a}>{a}</li>)}
+            </ul>
+          ) : (
+            <p className="m-0 mt-2 text-sm text-emerald-300">No active workflow alerts.</p>
+          )}
+        </div>
       </section>
 
       <section className="panel-glass p-6">
