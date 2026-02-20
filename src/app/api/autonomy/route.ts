@@ -245,6 +245,32 @@ const TRADE_SIGNAL_PATTERNS = [
   /^open\s+(a\s+)?(long|short)\s+position/i,
 ];
 
+const SAM_CORE_PLATFORM_KEYWORDS = [
+  "mission control",
+  "autonomy",
+  "workflow",
+  "guardrail",
+  "cron",
+  "control center",
+  "dashboard",
+  "api",
+  "task engine",
+  "execution",
+  "validator",
+  "lease",
+  "heartbeat",
+  "retry",
+  "schema",
+  "convex",
+  "plugin",
+  "pipeline",
+];
+
+function isSamCorePlatformTask(task: TaskDoc): boolean {
+  const combined = `${task.title} ${task.description ?? ""}`.toLowerCase();
+  return SAM_CORE_PLATFORM_KEYWORDS.some((kw) => combined.includes(kw));
+}
+
 function isRiskyOrVague(task: TaskDoc): string | null {
   const combined = `${task.title} ${task.description ?? ""}`.trim().toLowerCase();
   if (task.title.trim().length < 6) return "title_too_short";
@@ -1450,9 +1476,16 @@ async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
   }
 
   const backlog = sortOldestFirst(allTasks.filter((t) => t.status === "backlog"));
-  let selected = backlog.find((t) => t.assigned_to === assignee);
-  if (!selected && assignee === "sam") {
-    selected = backlog.find((t) => t.assigned_to === "agent");
+  let selected: TaskDoc | undefined;
+
+  if (assignee === "sam") {
+    // Sam scope priority: Mission Control / autonomy core platform first.
+    selected = backlog.find((t) => t.assigned_to === "sam" && isSamCorePlatformTask(t));
+    if (!selected) selected = backlog.find((t) => t.assigned_to === "agent" && isSamCorePlatformTask(t));
+    if (!selected) selected = backlog.find((t) => t.assigned_to === "sam");
+    if (!selected) selected = backlog.find((t) => t.assigned_to === "agent");
+  } else {
+    selected = backlog.find((t) => t.assigned_to === assignee);
   }
 
   if (!selected) {
