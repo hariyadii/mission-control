@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 
-type Assignee = "me" | "alex" | "sam" | "agent";
+type Assignee = "me" | "alex" | "sam" | "lyra" | "agent";
 type TaskStatus = "suggested" | "backlog" | "in_progress" | "done";
 
 type Task = {
@@ -29,6 +29,7 @@ const ASSIGNEE_OPTIONS: { value: Assignee; label: string }[] = [
   { value: "me", label: "Me" },
   { value: "alex", label: "Alex" },
   { value: "sam", label: "Sam" },
+  { value: "lyra", label: "Lyra" },
   { value: "agent", label: "Agent (Legacy)" },
 ];
 
@@ -37,6 +38,7 @@ function assigneeLabel(value: string) {
   if (v === "alex") return "Alex";
   if (v === "sam") return "Sam";
   if (v === "me") return "Me";
+  if (v === "lyra") return "Lyra";
   if (v === "agent") return "Agent";
   return value;
 }
@@ -46,6 +48,7 @@ function assigneeClass(value: string) {
   if (v === "alex") return "badge badge-alex";
   if (v === "sam") return "badge badge-sam";
   if (v === "me") return "badge badge-me";
+  if (v === "lyra") return "badge badge-alex";
   return "badge badge-legacy";
 }
 

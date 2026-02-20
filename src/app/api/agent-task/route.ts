@@ -2,12 +2,12 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
 import { NextResponse } from "next/server";
 
-type Assignee = "me" | "alex" | "sam" | "agent";
+type Assignee = "me" | "alex" | "sam" | "lyra" | "agent";
 type Status = "suggested" | "backlog" | "in_progress" | "done";
 
 function normalizeAssignee(value: unknown): Assignee {
   const v = String(value ?? "sam").toLowerCase();
-  if (v === "alex" || v === "sam" || v === "me" || v === "agent") return v;
+  if (v === "alex" || v === "sam" || v === "lyra" || v === "me" || v === "agent") return v;
   return "sam";
 }
 

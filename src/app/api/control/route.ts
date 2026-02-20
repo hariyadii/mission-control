@@ -167,7 +167,7 @@ export async function POST(request: Request) {
       const policy = await loadPolicy();
       const cron = (await runCronListAll()) as { jobs?: Array<{ id: string; name?: string }> };
       const jobs = cron.jobs ?? [];
-      const targetNames = new Set(["sam-mission-suggester-6h", "alex-guardrail-20m", "sam-worker-15m"]);
+      const targetNames = new Set(["sam-mission-suggester-3h", "alex-guardrail-20m", "sam-worker-15m", "lyra-capital-suggester-3h", "lyra-capital-worker-30m"]);
       const filtered = jobs.filter((j) => targetNames.has(j.name ?? ""));
 
       for (const job of filtered) {

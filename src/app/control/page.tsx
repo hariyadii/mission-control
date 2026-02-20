@@ -22,7 +22,13 @@ type ControlState = {
   cronJobs: { jobs: CronJob[] };
 };
 
-const LOOP_NAMES = ["sam-mission-suggester-6h", "alex-guardrail-20m", "sam-worker-15m"];
+const LOOP_NAMES = [
+  "sam-mission-suggester-3h",
+  "alex-guardrail-20m",
+  "sam-worker-15m",
+  "lyra-capital-suggester-3h",
+  "lyra-capital-worker-30m",
+];
 
 export default function ControlPage() {
   const [data, setData] = useState<ControlState | null>(null);

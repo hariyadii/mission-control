@@ -12,7 +12,7 @@ export const create = mutation({
   args: {
     title: v.string(),
     description: v.optional(v.string()),
-    assigned_to: v.union(v.literal("me"), v.literal("alex"), v.literal("sam"), v.literal("agent")),
+    assigned_to: v.union(v.literal("me"), v.literal("alex"), v.literal("sam"), v.literal("lyra"), v.literal("agent")),
     status: v.optional(v.union(v.literal("suggested"), v.literal("backlog"), v.literal("in_progress"), v.literal("done"))),
   },
   handler: async (ctx, args) => {
@@ -48,7 +48,7 @@ export const updateTask = mutation({
     id: v.id("tasks"),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
-    assigned_to: v.optional(v.union(v.literal("me"), v.literal("alex"), v.literal("sam"), v.literal("agent"))),
+    assigned_to: v.optional(v.union(v.literal("me"), v.literal("alex"), v.literal("sam"), v.literal("lyra"), v.literal("agent"))),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

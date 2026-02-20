@@ -17,9 +17,18 @@ const agents = [
     name: "Sam",
     model: "MiniMax M2.5",
     channel: "Discord",
-    role: "Worker specialist. Handles Discord operations and delegated execution tasks.",
+    role: "Ops worker specialist. Handles delegated execution and operational automation.",
     accent: "sam" as const,
     aliases: ["sam", "agent", "clawdc"],
+  },
+  {
+    code: "lyra",
+    name: "Lyra",
+    model: "MiniMax M2.5",
+    channel: "Discord (pending bot)",
+    role: "Capital lane strategist. Runs paper-trading research, signals, and portfolio reviews.",
+    accent: "lyra" as const,
+    aliases: ["lyra"],
   },
 ];
 
@@ -41,14 +50,16 @@ export default function TeamPage() {
         </div>
       </header>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-3">
         {agents.map((agent) => {
           const inProgressCount = getInProgressCount(agent.aliases);
           const badgeClass = agent.accent === "alex" ? "badge-alex" : "badge-sam";
           const gradient =
             agent.accent === "alex"
               ? "from-[rgba(109,91,255,0.2)] to-[rgba(138,77,255,0.16)]"
-              : "from-[rgba(18,207,208,0.2)] to-[rgba(14,165,198,0.16)]";
+              : agent.accent === "lyra"
+                ? "from-[rgba(244,114,182,0.18)] to-[rgba(168,85,247,0.14)]"
+                : "from-[rgba(18,207,208,0.2)] to-[rgba(14,165,198,0.16)]";
 
           return (
             <article key={agent.code} className={`panel-glass bg-gradient-to-br ${gradient} p-6`}>

@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { api } from "../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 
-type Assignee = "me" | "alex" | "sam" | "agent";
+type Assignee = "me" | "alex" | "sam" | "lyra" | "agent";
 type Status = "suggested" | "backlog" | "in_progress" | "done";
 type Action = "guardrail" | "worker" | "status";
 type TaskDoc = Doc<"tasks">;
@@ -120,7 +120,7 @@ function normalizeTitle(value: string): string {
 
 function normalizeAssignee(value: unknown, fallback: Assignee = "agent"): Assignee {
   const normalized = String(value ?? fallback).trim().toLowerCase();
-  if (normalized === "me" || normalized === "alex" || normalized === "sam" || normalized === "agent") {
+  if (normalized === "me" || normalized === "alex" || normalized === "sam" || normalized === "lyra" || normalized === "agent") {
     return normalized;
   }
   return fallback;
@@ -434,6 +434,192 @@ async function pluginTicketTriagePlaybook(ctx: PluginContext): Promise<PluginRes
   };
 }
 
+async function pluginCapitalPaperTrade(ctx: PluginContext): Promise<PluginResult> {
+  const text = `${ctx.task.title}\n${ctx.task.description ?? ""}`;
+  const upperText = text.toUpperCase();
+  const symbolMatch = upperText.match(
+    /\b(BTCUSDT|ETHUSDT|SOLUSDT|BNBUSDT|XRPUSDT|DOGEUSDT|ADAUSDT|AAPL|TSLA|NVDA|MSFT|AMZN|SPY|QQQ)\b/
+  );
+  if (!symbolMatch) {
+    throw new Error("capital_paper_trade could not find an allowlisted symbol in task title/description");
+  }
+
+  const symbol = symbolMatch[1];
+  const side: "long" | "short" = upperText.includes("SHORT") ? "short" : "long";
+  const market: "crypto" | "stock" = symbol.endsWith("USDT") ? "crypto" : "stock";
+
+  // Strip any "Worker failure (...): ..." lines that appendFailureNote may have
+  // appended to the description on previous failed attempts — we never want
+  // error diagnostics leaking into the stored trade thesis.
+  const rawDescription = ctx.task.description?.trim() ?? "";
+  const cleanedDescription = rawDescription
+    .split("\n")
+    .filter((line) => !/^Worker failure \(.*\):/.test(line.trim()))
+    .join("\n")
+    .trim();
+  const thesis = cleanedDescription || ctx.task.title.trim();
+
+  const statusResponse = await fetch("http://localhost:3001/api/capital", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "status" }),
+  });
+  const statusText = await statusResponse.text();
+  if (!statusResponse.ok) {
+    throw new Error(`capital status request failed (${statusResponse.status}): ${statusText.slice(0, 300)}`);
+  }
+
+  let statusPayload: Record<string, unknown> = {};
+  try {
+    statusPayload = JSON.parse(statusText) as Record<string, unknown>;
+  } catch {
+    throw new Error("capital status response was not valid JSON");
+  }
+
+  const statusData =
+    statusPayload && typeof statusPayload.data === "object" && statusPayload.data
+      ? (statusPayload.data as Record<string, unknown>)
+      : statusPayload;
+  const halted =
+    statusData.halted === true ||
+    statusData.isHalted === true ||
+    statusData.tradingHalted === true ||
+    statusData.status === "halted" ||
+    (statusData.portfolio && typeof statusData.portfolio === "object" && (statusData.portfolio as Record<string, unknown>).status === "halted");
+  if (halted) {
+    throw new Error("capital paper trading is halted");
+  }
+
+  const portfolioObj =
+    statusData.portfolio && typeof statusData.portfolio === "object"
+      ? (statusData.portfolio as Record<string, unknown>)
+      : null;
+  const totalEquityCandidate =
+    portfolioObj?.totalEquity ??
+    statusData.totalEquity ??
+    statusData.total_equity ??
+    statusData.equity ??
+    statusData.accountEquity ??
+    statusData.balance;
+  const totalEquity = Number(totalEquityCandidate);
+  if (!Number.isFinite(totalEquity) || totalEquity <= 0) {
+    throw new Error("capital status missing a valid totalEquity");
+  }
+
+  const parseLastNumber = (raw: string): number => {
+    const matches = raw.match(/-?\d+(?:\.\d+)?/g);
+    if (!matches || !matches.length) throw new Error(`unable to parse numeric value from command output: ${raw.slice(0, 200)}`);
+    const value = Number(matches[matches.length - 1]);
+    if (!Number.isFinite(value) || value <= 0) throw new Error(`parsed invalid numeric value: ${String(value)}`);
+    return value;
+  };
+
+  let entryPrice: number;
+  if (market === "crypto") {
+    const binanceOutput = await runCommand(`curl -s "https://api.binance.com/api/v3/ticker/price?symbol=${symbol}"`);
+    let parsed: { price?: string } = {};
+    try {
+      parsed = JSON.parse(binanceOutput) as { price?: string };
+    } catch {
+      throw new Error(`failed parsing Binance ticker response for ${symbol}`);
+    }
+    entryPrice = Number(parsed.price);
+    if (!Number.isFinite(entryPrice) || entryPrice <= 0) {
+      throw new Error(`invalid Binance entry price for ${symbol}`);
+    }
+  } else {
+    const stockOutput = await runCommand(`python3 - <<'PY'
+import yfinance as yf
+symbol = "${symbol}"
+ticker = yf.Ticker(symbol)
+hist = ticker.history(period="1d", interval="1m")
+if hist.empty:
+    hist = ticker.history(period="5d", interval="1d")
+if hist.empty:
+    raise SystemExit(2)
+print(float(hist["Close"].dropna().iloc[-1]))
+PY`);
+    entryPrice = parseLastNumber(stockOutput);
+  }
+
+  const notional = totalEquity * 0.04;
+  const size = notional / entryPrice;
+  if (!Number.isFinite(size) || size <= 0) {
+    throw new Error("calculated position size is invalid");
+  }
+
+  const riskPct = market === "crypto" ? 0.02 : 0.015;
+  const stopLoss = side === "long" ? entryPrice * (1 - riskPct) : entryPrice * (1 + riskPct);
+  const takeProfit = side === "long" ? entryPrice * (1 + 2 * riskPct) : entryPrice * (1 - 2 * riskPct);
+
+  const tradePayload = {
+    action: "trade",
+    symbol,
+    side,
+    entryPrice,
+    size,
+    stopLoss,
+    takeProfit,
+    thesis,
+  };
+  const tradeResponse = await fetch("http://localhost:3001/api/capital", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(tradePayload),
+  });
+  const tradeText = await tradeResponse.text();
+  if (!tradeResponse.ok) {
+    throw new Error(`capital trade request failed (${tradeResponse.status}): ${tradeText.slice(0, 300)}`);
+  }
+  let tradeResult: Record<string, unknown> = {};
+  try {
+    tradeResult = JSON.parse(tradeText) as Record<string, unknown>;
+  } catch {
+    throw new Error("capital trade response was not valid JSON");
+  }
+  if (tradeResult.ok !== true) {
+    throw new Error(`capital trade response returned ok=false: ${tradeText.slice(0, 300)}`);
+  }
+
+  const slug = safeSlug(ctx.task.title);
+  const outPath = `${PLUGIN_OUTPUT_DIR}/capital-trade-${slug}.md`;
+  const content = [
+    "# Capital Paper Trade",
+    "",
+    `Generated at: ${ctx.timestamp}`,
+    `Worker: ${ctx.worker}`,
+    `Task: ${ctx.task.title}`,
+    "",
+    "## Trade Parameters",
+    `- Symbol: ${symbol}`,
+    `- Market: ${market}`,
+    `- Side: ${side}`,
+    `- Entry Price: ${entryPrice}`,
+    `- Total Equity: ${totalEquity}`,
+    `- Notional (4%): ${notional}`,
+    `- Size: ${size}`,
+    `- Risk %: ${riskPct * 100}%`,
+    `- Stop Loss: ${stopLoss}`,
+    `- Take Profit: ${takeProfit}`,
+    "",
+    "## Thesis",
+    thesis,
+    "",
+    "## Capital API Result",
+    "```json",
+    JSON.stringify(tradeResult, null, 2),
+    "```",
+    "",
+  ].join("\n");
+  const written = await writeTextFile(outPath, content);
+
+  return {
+    pluginId: "capital_paper_trade",
+    notes: ["Submitted paper trade to local Capital API with 1R stop and 2R take-profit."],
+    files: [written],
+  };
+}
+
 async function pluginXScout(ctx: PluginContext): Promise<PluginResult> {
   const policy = await enforceExternalActionPolicy("medium");
   if (policy.external.xMode !== "browse") {
@@ -540,6 +726,15 @@ const EXECUTOR_PLUGINS: ExecutorPlugin[] = [
       return t.includes("ticket") && t.includes("triage");
     },
     run: pluginTicketTriagePlaybook,
+  },
+  {
+    id: "capital_paper_trade",
+    match: (task) => {
+      const t = normalizeTitle(task.title);
+      const padded = ` ${t} `;
+      return t.includes("capital") || t.includes("paper trade") || padded.includes(" long ") || padded.includes(" short ");
+    },
+    run: pluginCapitalPaperTrade,
   },
   {
     id: "x_scout",
@@ -891,6 +1086,7 @@ async function runStatus(client: ConvexHttpClient) {
     me: 0,
     alex: 0,
     sam: 0,
+    lyra: 0,
     agent: 0,
   };
 
