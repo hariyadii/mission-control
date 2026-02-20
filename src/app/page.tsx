@@ -96,8 +96,8 @@ export default function Home() {
   const inProgressTasks = (tasks ?? []).filter((t) => t.status === "in_progress");
   const recentDone = (tasks ?? [])
     .filter((t) => t.status === "done")
-    .slice(-4)
-    .reverse();
+    .sort((a, b) => ((b as { _creationTime?: number })._creationTime ?? 0) - ((a as { _creationTime?: number })._creationTime ?? 0))
+    .slice(0, 4);
 
   return (
     <div className="space-y-6">

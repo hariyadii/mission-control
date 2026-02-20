@@ -9,6 +9,7 @@ type TaskStatus = "suggested" | "backlog" | "in_progress" | "done";
 
 type Task = {
   _id: Id<"tasks">;
+  _creationTime?: number;
   title: string;
   description?: string;
   status: TaskStatus;
@@ -194,7 +195,12 @@ export default function TasksPage() {
   };
 
   const grouped = COLUMNS.reduce((acc, col) => {
-    acc[col.key] = (tasks ?? []).filter((t) => t.status === col.key);
+    const filtered = (tasks ?? []).filter((t) => t.status === col.key);
+    // Sort done tasks newest first
+    if (col.key === "done") {
+      filtered.sort((a, b) => (b._creationTime ?? 0) - (a._creationTime ?? 0));
+    }
+    acc[col.key] = filtered;
     return acc;
   }, {} as Record<string, Task[]>);
 
@@ -262,7 +268,7 @@ export default function TasksPage() {
               </span>
             </div>
 
-            <div className="space-y-2.5">
+            <div className={`space-y-2.5 ${col.key === "done" ? "max-h-[420px] overflow-y-auto pr-1" : ""}`}>
               {grouped[col.key]?.map((task) => {
                 const scope = samScope(task);
                 return (

@@ -227,15 +227,25 @@ export default function CalendarPage() {
         ) : (
           <div className="space-y-2.5">
             {jobs.map((job, i) => (
-              <article key={job.id ?? i} className="panel-glass flex items-start gap-3 p-4">
-                <div className="mt-0.5 text-lg text-slate-300">◴</div>
-                <div className="flex-1">
-                  <p className="m-0 text-sm font-semibold text-slate-100">{job.name}</p>
-                  <p className="m-0 mt-1 font-mono text-xs text-indigo-200">{job.scheduleDesc}</p>
-                  {job.payloadText && <p className="m-0 mt-1 text-xs text-slate-300">{job.payloadText}</p>}
-                  <p className="m-0 mt-1 text-xs text-slate-400">{job.payloadKind}</p>
+              <article key={job.id ?? i} className="panel-glass p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 shrink-0 text-lg text-slate-300">◴</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="m-0 truncate text-sm font-semibold text-slate-100">{job.name}</p>
+                      <span className={`ml-auto shrink-0 badge ${job.enabled ? "badge-sam" : "badge-legacy"}`}>
+                        {job.enabled ? "Active" : "Disabled"}
+                      </span>
+                    </div>
+                    <p className="m-0 mt-1 font-mono text-xs text-indigo-200">{job.scheduleDesc}</p>
+                    <p className="m-0 mt-0.5 text-xs text-slate-400">{job.payloadKind}</p>
+                    {job.payloadText && (
+                      <p className="m-0 mt-2 line-clamp-2 text-xs leading-relaxed text-slate-400">
+                        {job.payloadText}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <span className={`badge ${job.enabled ? "badge-sam" : "badge-legacy"}`}>{job.enabled ? "Active" : "Disabled"}</span>
               </article>
             ))}
           </div>

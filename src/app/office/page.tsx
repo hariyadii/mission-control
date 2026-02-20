@@ -66,7 +66,7 @@ function DeskCard({ desk }: { desk: (typeof desks)[0] }) {
         : "from-[rgba(18,207,208,0.2)] to-[rgba(14,165,198,0.13)]";
 
   return (
-    <article className={`panel-glass w-full max-w-[320px] bg-gradient-to-br ${gradient} p-5`}>
+    <article className={`panel-glass w-full bg-gradient-to-br ${gradient} p-5`}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="m-0 text-lg font-semibold text-slate-100">{desk.name}</p>
@@ -131,7 +131,7 @@ export default function OfficePage() {
       </header>
 
       <section className="panel-glass p-6">
-        <div className="office-desks flex flex-wrap justify-center gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {desks.map((desk) => (
             <DeskCard key={desk.code} desk={desk} />
           ))}
