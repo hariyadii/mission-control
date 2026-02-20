@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+const OPENCLAW_BIN = "/home/ubuntu/.npm-global/bin/openclaw";
 const WORKSPACE_ROOT = "/home/ubuntu/.openclaw/workspace";
 const POLICY_FILE = `${WORKSPACE_ROOT}/autonomy/policy.json`;
 const EXTERNAL_LOG_FILE = `${WORKSPACE_ROOT}/autonomy/metrics/external-actions.jsonl`;
@@ -82,7 +83,7 @@ async function countExternalActionsToday(): Promise<number> {
 }
 
 async function runCronListAll() {
-  const { stdout } = await execFileAsync("openclaw", ["cron", "list", "--all", "--json"], {
+  const { stdout } = await execFileAsync(OPENCLAW_BIN, ["cron", "list", "--all", "--json"], {
     timeout: 20000,
     maxBuffer: 1024 * 1024,
   });
@@ -90,7 +91,7 @@ async function runCronListAll() {
 }
 
 async function runCronMutation(command: "run" | "enable" | "disable", jobId: string) {
-  const { stdout } = await execFileAsync("openclaw", ["cron", command, jobId], {
+  const { stdout } = await execFileAsync(OPENCLAW_BIN, ["cron", command, jobId], {
     timeout: 20000,
     maxBuffer: 1024 * 1024,
   });

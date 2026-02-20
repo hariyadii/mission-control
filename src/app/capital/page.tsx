@@ -35,13 +35,52 @@ type CapitalMetrics = {
   }>;
 };
 
+type OpenPosition = {
+  id: string;
+  symbol: string;
+  side: "long" | "short";
+  entryPrice: number;
+  currentPrice: number;
+  size: number;
+  notional: number;
+  stopLoss: number;
+  takeProfit: number;
+  unrealizedPnl: number;
+  unrealizedPnlPct: number;
+  thesis: string;
+  openedAt: string;
+};
+
+type StatusPayload = {
+  ok: boolean;
+  portfolio: {
+    totalEquity: number;
+    totalPnl: number;
+    totalPnlPct: number;
+    drawdownPct: number;
+    status: string;
+    mode: string;
+    cash: number;
+    positions: OpenPosition[];
+  };
+  alerts: string[];
+};
+
 export default function CapitalPage() {
   const [metrics, setMetrics] = useState<CapitalMetrics | null>(null);
+  const [status, setStatus] = useState<StatusPayload | null>(null);
 
   const refresh = async () => {
-    const res = await fetch("/api/capital");
-    if (!res.ok) return;
-    setMetrics((await res.json()) as CapitalMetrics);
+    const [metricsRes, statusRes] = await Promise.all([
+      fetch("/api/capital"),
+      fetch("/api/capital", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "status" }),
+      }),
+    ]);
+    if (metricsRes.ok) setMetrics((await metricsRes.json()) as CapitalMetrics);
+    if (statusRes.ok) setStatus((await statusRes.json()) as StatusPayload);
   };
 
   useEffect(() => {
@@ -103,6 +142,29 @@ export default function CapitalPage() {
             )}
           </div>
         </article>
+      </section>
+
+      <section className="panel-glass p-5">
+        <h2 className="m-0 text-lg font-semibold text-slate-100">Open Positions</h2>
+        <div className="mt-3 space-y-2">
+          {status?.portfolio?.positions?.length ? (
+            status.portfolio.positions.map((pos) => (
+              <div key={pos.id} className="panel-soft px-3 py-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-slate-100">{pos.symbol} • {pos.side}</span>
+                  <span className={pos.unrealizedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}>
+                    {pos.unrealizedPnl >= 0 ? "+" : ""}${pos.unrealizedPnl.toFixed(2)} ({pos.unrealizedPnlPct.toFixed(2)}%)
+                  </span>
+                </div>
+                <p className="m-0 mt-1 text-xs text-slate-400">
+                  Entry ${pos.entryPrice.toFixed(2)} • Now ${pos.currentPrice.toFixed(2)} • SL ${pos.stopLoss.toFixed(2)} • TP ${pos.takeProfit.toFixed(2)}
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="panel-soft p-3 text-sm text-slate-400">No open positions.</div>
+          )}
+        </div>
       </section>
 
       <section className="panel-glass p-5">
