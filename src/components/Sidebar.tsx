@@ -3,33 +3,45 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/", label: "Overview", icon: "◈" },
-  { href: "/tasks", label: "Tasks", icon: "☰" },
-  { href: "/calendar", label: "Calendar", icon: "◷" },
-  { href: "/memory", label: "Memory", icon: "◎" },
-  { href: "/team", label: "Team", icon: "◉" },
-  { href: "/office", label: "Office", icon: "⌘" },
-  { href: "/capital", label: "Capital", icon: "◍" },
-  { href: "/control", label: "Control", icon: "⚙" },
+  { href: "/", label: "Overview", icon: "◈", color: "text-slate-400", activeColor: "text-indigo-400" },
+  { href: "/tasks", label: "Tasks", icon: "☰", color: "text-slate-400", activeColor: "text-indigo-400" },
+  { href: "/calendar", label: "Calendar", icon: "◷", color: "text-slate-400", activeColor: "text-amber-400" },
+  { href: "/memory", label: "Memory", icon: "◎", color: "text-slate-400", activeColor: "text-rose-400" },
+  { href: "/team", label: "Team", icon: "◉", color: "text-slate-400", activeColor: "text-cyan-400" },
+  { href: "/office", label: "Office", icon: "⌘", color: "text-slate-400", activeColor: "text-violet-400" },
+  { href: "/capital", label: "Capital", icon: "◍", color: "text-slate-400", activeColor: "text-emerald-400" },
+  { href: "/control", label: "Control", icon: "⚙", color: "text-slate-400", activeColor: "text-amber-400" },
+  { href: "/audit", label: "Audit", icon: "◫", color: "text-slate-400", activeColor: "text-rose-400" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="sidebar sticky top-0 flex min-h-screen flex-col border-r border-white/10 bg-slate-950/65 px-3 py-5 backdrop-blur-xl">
+    <aside className="sidebar sticky top-0 flex min-h-screen flex-col border-r border-white/10 bg-slate-950/65 px-3 py-5 backdrop-blur-xl" role="navigation" aria-label="Main navigation">
       <div className="mb-4 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-3">
         <p className="sidebar-title m-0 text-sm font-semibold tracking-wide text-slate-100">Mission Control</p>
         <p className="sidebar-subtitle m-0 mt-1 text-xs text-[color:var(--text-muted)]">AI Ops Dashboard</p>
       </div>
 
-      <nav className="flex flex-col gap-1.5">
+      <nav className="flex flex-col gap-1.5" role="menubar" aria-label="Page navigation">
         {links.map((link) => {
           const active = pathname === link.href;
           return (
-            <Link key={link.href} href={link.href} className={`nav-link ${active ? "nav-link-active" : ""}`}>
-              <span className="text-base leading-none">{link.icon}</span>
-              <span className="sidebar-label">{link.label}</span>
+            <Link 
+              key={link.href} 
+              href={link.href} 
+              className={`nav-link group ${active ? "nav-link-active" : ""}`}
+              role="menuitem"
+              aria-current={active ? "page" : undefined}
+            >
+              <span className={`text-base leading-none transition-transform group-hover:scale-110 ${active ? link.activeColor : link.color}`} aria-hidden="true">
+                {link.icon}
+              </span>
+              <span className={`sidebar-label ${active ? "text-indigo-100" : ""}`}>{link.label}</span>
+              {active && (
+                <span className="ml-auto flex h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" aria-hidden="true" />
+              )}
             </Link>
           );
         })}
