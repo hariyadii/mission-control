@@ -189,7 +189,10 @@ export async function POST(request: Request) {
         await runCronMutation(enabled ? "disable" : "enable", job.id);
       }
 
-      const nextPolicy = { ...policy, killSwitch: enabled };
+      // Re-read policy after cron mutations to avoid overwriting concurrent policy changes
+      // made between our initial loadPolicy() and this write (read-modify-write race).
+      const freshPolicy = await loadPolicy();
+      const nextPolicy = { ...freshPolicy, killSwitch: enabled };
       await savePolicy(nextPolicy);
       const touchedJobs = filtered.map((j) => j.id);
       const warning = touchedJobs.length === 0 ? "no_matching_cron_jobs_found" : undefined;
