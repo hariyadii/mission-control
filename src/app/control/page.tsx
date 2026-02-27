@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   FreshnessIndicator,
   StatusBadge,
@@ -55,7 +55,7 @@ export default function ControlPage() {
   const [data,       setData]       = useState<ControlState | null>(null);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const [ctrlRes, autoRes] = await Promise.all([
       fetch("/api/control"),
       fetch("/api/autonomy", {
@@ -74,13 +74,13 @@ export default function ControlPage() {
       workflowHealth:       auto?.workflowHealth,
     });
     setLastUpdate(Date.now());
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
     const id = setInterval(refresh, 15_000);
     return () => clearInterval(id);
-  }, []);
+  }, [refresh]);
 
   const health   = data?.workflowHealth;
   const severity = health?.severity || "none";

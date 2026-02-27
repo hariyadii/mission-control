@@ -203,36 +203,47 @@ a { color: inherit; }
 }
 
 /* ── Sidebar ── */
-.sidebar { width: 220px; }
+:root {
+  --sidebar-expanded-w: 220px;
+  --sidebar-collapsed-w: 64px;
+}
+
+/* Desktop sidebar widths */
+.sidebar-root { width: var(--sidebar-expanded-w); }
+.sidebar-expanded { width: var(--sidebar-expanded-w); }
+.sidebar-collapsed { width: var(--sidebar-collapsed-w); }
+
+/* Legacy alias kept for any other references */
+.sidebar { width: var(--sidebar-expanded-w); }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .sidebar {
-    width: 64px !important;
+  /* Sidebar becomes a fixed off-canvas drawer via JS.
+     data-mobile="true" is set once JS hydrates — until then it stays
+     sticky/0-width so it doesn't push layout on server render.
+     Once fixed, inline style or sidebar-expanded class controls the visible width. */
+  .sidebar-root:not([data-mobile="true"]) {
+    width: 0 !important;
+    min-width: 0 !important;
+    border-right: none !important;
   }
-  .sidebar-label,
-  .sidebar-title,
-  .sidebar-subtitle,
-  .sidebar-title-wrap {
-    display: none !important;
+  /* fixed drawer inherits sidebar-expanded width (220px) */
+  .sidebar-root[data-mobile="true"] {
+    width: var(--sidebar-expanded-w) !important;
   }
-  .content-wrap { padding: 0.875rem !important; }
+  .app-shell { padding-left: 0 !important; }
+  /* Add top padding to main content to avoid hamburger overlap */
+  .content-wrap { padding-top: 3.5rem !important; }
 }
 
 @media (max-width: 480px) {
-  .sidebar {
-    width: 52px !important;
-    min-width: 52px !important;
-    padding-inline: 0.25rem !important;
-  }
   /* Ensure nav icon tap targets meet 44px minimum at xs breakpoints */
-  .sidebar .nav-link {
-    justify-content: center !important;
+  .sidebar-root .nav-link {
     min-height: 44px !important;
   }
   .app-shell  { overflow-x: hidden; }
   .content-wrap {
-    padding: 0.625rem !important;
+    padding: 3.5rem 0.625rem 0.625rem !important;
     overflow-x: hidden;
     min-width: 0;
   }
@@ -242,13 +253,6 @@ a { color: inherit; }
   .page-title   { font-size: 1.125rem !important; }
   /* Clamp computed max-heights so they never go negative on short viewports */
   .max-h-screen-clamped { max-height: max(200px, calc(100vh - 300px)); }
-}
-
-@media (max-width: 375px) {
-  .sidebar {
-    width: 48px !important;
-    min-width: 48px !important;
-  }
 }
 
 @media (max-width: 920px) {
