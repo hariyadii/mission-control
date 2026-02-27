@@ -308,7 +308,7 @@ export const completeTask = mutation({
       changelog_last_checked_at: args.changelog_last_checked_at ?? nowIso(),
       owner: undefined,
       lease_until: undefined,
-      heartbeat_at: nowIso(),
+      heartbeat_at: success ? nowIso() : undefined,
       retry_count_run: success ? 0 : (task.retry_count_run ?? 0) + 1,
       retry_count_total: success ? (task.retry_count_total ?? 0) : (task.retry_count_total ?? 0) + 1,
       last_validation_reason: success ? undefined : blockedReason,

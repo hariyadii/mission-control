@@ -4044,7 +4044,7 @@ async function runComplete(
     ].join("\n");
   }
 
-  if (validation.status === "fail" && !reviewTask && !novaUiHandoff && sameReasonFailStreak >= 3) {
+  else if (validation.status === "fail" && !reviewTask && !novaUiHandoff && sameReasonFailStreak >= 3) {
     finalStatus = "blocked";
     finalValidationStatus = "fail";
     blockedReason = "validation_contract_mismatch";
@@ -4261,12 +4261,18 @@ async function runHeartbeat(client: ConvexHttpClient, taskId: unknown, requested
     .join("\n")
     .trim();
   const newDesc = `${cleaned}${cleaned ? "\n\n" : ""}${marker}`;
-  await client.mutation(api.tasks.updateTask, { id: task._id, description: newDesc });
+  const nextLeaseUntil = new Date(Date.now() + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
+  await client.mutation(api.tasks.updateTask, {
+    id: task._id,
+    description: newDesc,
+    heartbeat_at: new Date().toISOString(),
+    lease_until: nextLeaseUntil,
+  });
 
   return {
     ok: true,
     action: "heartbeat" as const,
-    lease_until: new Date(Date.now() + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString(),
+    lease_until: nextLeaseUntil,
   };
 }
 

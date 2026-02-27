@@ -179,7 +179,6 @@ export async function POST(request: Request) {
 
     if (action === "killSwitch") {
       const enabled = Boolean(body.enabled);
-      const policy = await loadPolicy();
       const cron = (await runCronListAll()) as { jobs?: Array<{ id: string; name?: string }> };
       const jobs = cron.jobs ?? [];
       const targetNames = new Set(["sam-mission-suggester-3h", "alex-guardrail-20m", "sam-worker-15m", "lyra-capital-suggester-3h", "lyra-capital-worker-30m"]);
@@ -189,7 +188,8 @@ export async function POST(request: Request) {
         await runCronMutation(enabled ? "disable" : "enable", job.id);
       }
 
-      const nextPolicy = { ...policy, killSwitch: enabled };
+      const latestPolicy = await loadPolicy();
+      const nextPolicy = { ...latestPolicy, killSwitch: enabled };
       await savePolicy(nextPolicy);
       const touchedJobs = filtered.map((j) => j.id);
       const warning = touchedJobs.length === 0 ? "no_matching_cron_jobs_found" : undefined;
