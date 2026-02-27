@@ -172,8 +172,15 @@ sustained_backlog_stall=false
 sustained_alerts=false
 sustained_github_failure=false
 sustained_ops_failure=false
+# Stability-hardening-v2: require >= 2 consecutive observations for all sustained
+# failure flags to prevent false NO_GO from transient single-signal anomalies.
 if (( jobs_error_enabled >= 2 )); then sustained_cron_errors=true; fi
-if (( backlog >= 3 && inprog == 0 && backlog_stall_minutes >= 45 )) && [[ "$healthy_worker_activity" != "true" ]]; then sustained_backlog_stall=true; fi
+# backlog_stall requires the stall to be tracked across 2 script runs (backlog_stall_since > 0
+# from the previous run AND current stall_minutes >= 45).
+if (( backlog >= 3 && inprog == 0 && backlog_stall_minutes >= 45 )) && [[ "$healthy_worker_activity" != "true" ]] \
+  && [[ "$prev_backlog_since" =~ ^[0-9]+$ ]] && (( prev_backlog_since > 0 )); then
+  sustained_backlog_stall=true
+fi
 if (( critical_alert_consecutive >= 2 )); then sustained_alerts=true; fi
 if [[ "$github_ready" != "true" && "$github_issue_consecutive" -ge 2 ]]; then sustained_github_failure=true; fi
 if (( github_total_checks_24h >= 2 )); then
@@ -181,6 +188,7 @@ if (( github_total_checks_24h >= 2 )); then
     sustained_github_failure=true
   fi
 fi
+# Ops failure requires >= 2 consecutive unhealthy observations (single-signal tolerance).
 if [[ "$ops_issue" == "true" && "$ops_issue_consecutive" -ge 2 ]]; then sustained_ops_failure=true; fi
 
 sustained_failure=false

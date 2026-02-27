@@ -62,9 +62,16 @@ export default defineSchema({
     changelog_feature: v.optional(v.string()),
     changelog_status: v.optional(v.union(v.literal("pending"), v.literal("pass"), v.literal("fail"))),
     changelog_last_checked_at: v.optional(v.string()),
+
+    // Stability-hardening-v2: failure fingerprint breaker
+    failure_fingerprint: v.optional(v.string()),
+    lane_paused: v.optional(v.boolean()),
+    lane_paused_reason: v.optional(v.string()),
+    lane_paused_at: v.optional(v.string()),
   })
     .index("by_idempotency", ["idempotency_key"])
-    .index("by_status_assignee", ["status", "assigned_to"]),
+    .index("by_status_assignee", ["status", "assigned_to"])
+    .index("by_failure_fingerprint", ["failure_fingerprint"]),
   calendarNotes: defineTable({
     date: v.string(), // YYYY-MM-DD
     note: v.string(),

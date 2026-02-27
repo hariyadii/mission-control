@@ -214,6 +214,24 @@ if (( stuck_running > 0 || escalated > 0 )); then
 elif (( remaining_errors > 0 || pending > 0 )); then
   severity_out="warning"
 fi
+# Stability-hardening-v2: collect running lock details for observability.
+running_locks_json="$(printf '%s\n' "$cron_json" | jq -c '[
+  .jobs[]
+  | select(.enabled==true and ((.state.runningAtMs // 0) > 0))
+  | {
+      name,
+      id,
+      runningAtMs: (.state.runningAtMs // 0),
+      timeoutSeconds: (.payload.timeoutSeconds // 180)
+    }
+  | . + {
+      elapsedMs: ('"$now_ms"' - .runningAtMs),
+      budgetMs: ((.timeoutSeconds + 90) * 1000)
+    }
+  | . + {overBudget: (.elapsedMs > .budgetMs)}
+]')"
+running_locks_count="$(printf '%s\n' "$running_locks_json" | jq 'length')"
+
 summary="$(jq -cn \
   --arg timestamp "$timestamp" \
   --arg severity "$severity_out" \
@@ -224,7 +242,9 @@ summary="$(jq -cn \
   --argjson stuckRunning "$stuck_running" \
   --argjson escalated "$escalated" \
   --argjson remainingErrors "$remaining_errors" \
-  '{timestamp:$timestamp,severity:$severity,checked:$checked,retried:$retried,autoRecovered:$autoRecovered,pending:$pending,stuckRunning:$stuckRunning,escalated:$escalated,remainingErrors:$remainingErrors}')"
+  --argjson runningLocksCount "$running_locks_count" \
+  --argjson runningLocks "$running_locks_json" \
+  '{timestamp:$timestamp,severity:$severity,checked:$checked,retried:$retried,autoRecovered:$autoRecovered,pending:$pending,stuckRunning:$stuckRunning,escalated:$escalated,remainingErrors:$remainingErrors,runningLocksCount:$runningLocksCount,runningLocks:$runningLocks}')"
 
 printf '%s\n' "$summary" >> "$HEAL_LOG"
 printf '%s\n' "$summary"

@@ -153,6 +153,11 @@ export const updateTask = mutation({
     intent_window: v.optional(v.string()),
     workflow_contract_version: v.optional(v.string()),
     updated_at: v.optional(v.string()),
+    // Stability-hardening-v2 fields
+    failure_fingerprint: v.optional(v.string()),
+    lane_paused: v.optional(v.boolean()),
+    lane_paused_reason: v.optional(v.string()),
+    lane_paused_at: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
@@ -182,6 +187,11 @@ export const claimForAssignee = mutation({
 
     if (ownedInProgress.length > 0) {
       const task = ownedInProgress[0];
+      // Idempotent claim guard: if lease is still fresh, return early without re-patching.
+      const leaseUntilMs = task.lease_until ? Date.parse(task.lease_until) : 0;
+      if (leaseUntilMs > now) {
+        return { claimed: true, resumed: true, taskId: task._id, guard: "duplicate_claim_guard" };
+      }
       await ctx.db.patch(task._id, {
         lease_until: leaseUntil,
         heartbeat_at: nowIsoString,
@@ -205,9 +215,13 @@ export const claimForAssignee = mutation({
     }
 
     const task = backlogCandidates[0];
-    // optimistic check-ish: only claim if still backlog
+    // Idempotent claim guard: re-fetch to ensure task is still claimable.
     const fresh = await ctx.db.get(task._id);
     if (!fresh || fresh.status !== "backlog") {
+      // Task was claimed by a concurrent caller within the same lease window.
+      if (fresh && fresh.status === "in_progress" && fresh.owner === args.assignee) {
+        return { claimed: true, resumed: true, taskId: fresh._id, guard: "duplicate_claim_guard" };
+      }
       return { claimed: false, resumed: false, taskId: null };
     }
 
@@ -273,6 +287,9 @@ export const completeTask = mutation({
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.id);
     if (!task) return { ok: false, reason: "not_found" };
+    // Idempotent complete guard: if task is already done/blocked/backlog and was last
+    // touched within the current lease window, treat as a duplicate complete.
+    if (task.status === "done") return { ok: true, reason: "duplicate_complete_guard", status: "done" };
     if (task.status !== "in_progress") return { ok: false, reason: "not_in_progress" };
     if (task.owner && task.owner !== args.assignee) return { ok: false, reason: "owner_mismatch" };
 
@@ -355,6 +372,130 @@ export const requeueExpiredLeases = mutation({
     }
 
     return { ok: true, requeued: expired.length };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Stability-hardening-v2: failure fingerprint breaker
+// ---------------------------------------------------------------------------
+
+export const getFailureFingerprintCount = query({
+  args: {
+    fingerprint: v.string(),
+    assignee: ASSIGNEE,
+    windowHours: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const windowMs = Math.max(1, args.windowHours ?? 24) * 60 * 60 * 1000;
+    const cutoffMs = Date.now() - windowMs;
+    // Use the index to narrow to tasks with this fingerprint.
+    const candidates = await ctx.db
+      .query("tasks")
+      .withIndex("by_failure_fingerprint", (q) => q.eq("failure_fingerprint", args.fingerprint))
+      .collect();
+    const count = candidates.filter((t) => {
+      if (t.assigned_to !== args.assignee) return false;
+      const updatedMs = Date.parse(String(t.updated_at ?? ""));
+      return Number.isFinite(updatedMs) && updatedMs >= cutoffMs;
+    }).length;
+    return { fingerprint: args.fingerprint, assignee: args.assignee, count, windowHours: args.windowHours ?? 24 };
+  },
+});
+
+export const pauseLane = mutation({
+  args: {
+    assignee: ASSIGNEE,
+    reason: v.string(),
+    remediationTitle: v.optional(v.string()),
+    remediationDescription: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const nowTs = nowIso();
+    // Mark all active in_progress / backlog tasks for this assignee as paused.
+    const all = await ctx.db.query("tasks").collect();
+    let paused = 0;
+    for (const task of all) {
+      if (task.assigned_to !== args.assignee) continue;
+      if (task.status !== "in_progress" && task.status !== "backlog") continue;
+      await ctx.db.patch(task._id, {
+        lane_paused: true,
+        lane_paused_reason: args.reason,
+        lane_paused_at: nowTs,
+        updated_at: nowTs,
+      });
+      paused += 1;
+    }
+    // Create a remediation task so the operator sees the issue.
+    let remediationId: string | undefined;
+    const title = (args.remediationTitle ?? `[OPS] Remediate lane pause: ${args.assignee}`).slice(0, 120);
+    const desc = args.remediationDescription ?? `Lane ${args.assignee} was auto-paused.\nReason: ${args.reason}\nPaused at: ${nowTs}`;
+    const idempotencyKey = `lane_pause:${args.assignee}:${args.reason.slice(0, 40)}`;
+    const existing = await ctx.db
+      .query("tasks")
+      .withIndex("by_idempotency", (q) => q.eq("idempotency_key", idempotencyKey))
+      .unique();
+    if (existing) {
+      remediationId = String(existing._id);
+    } else {
+      const created = await ctx.db.insert("tasks", {
+        title,
+        description: desc,
+        assigned_to: "ops",
+        status: "backlog",
+        created_at: nowTs,
+        updated_at: nowTs,
+        workflow_contract_version: "v2",
+        idempotency_key: idempotencyKey,
+        owner: undefined,
+        lease_until: undefined,
+        heartbeat_at: undefined,
+        retry_count_total: 0,
+        retry_count_run: 0,
+        blocked_reason: undefined,
+        blocked_until: undefined,
+        unblock_signal: undefined,
+        last_validation_reason: undefined,
+        same_reason_fail_streak: 0,
+        remediation_task_id: undefined,
+        remediation_source: undefined,
+        incident_fingerprint: undefined,
+        auto_recovery_attempts: 0,
+        escalated_to_user_at: undefined,
+        artifact_path: undefined,
+        validation_status: "pending",
+        changelog_path: undefined,
+        changelog_feature: undefined,
+        changelog_status: "pending",
+        changelog_last_checked_at: undefined,
+        failure_fingerprint: undefined,
+        lane_paused: undefined,
+        lane_paused_reason: undefined,
+        lane_paused_at: undefined,
+      });
+      remediationId = String(created);
+    }
+    return { ok: true, paused, remediationId };
+  },
+});
+
+export const resumeLane = mutation({
+  args: { assignee: ASSIGNEE },
+  handler: async (ctx, args) => {
+    const nowTs = nowIso();
+    const all = await ctx.db.query("tasks").collect();
+    let resumed = 0;
+    for (const task of all) {
+      if (task.assigned_to !== args.assignee) continue;
+      if (!task.lane_paused) continue;
+      await ctx.db.patch(task._id, {
+        lane_paused: undefined,
+        lane_paused_reason: undefined,
+        lane_paused_at: undefined,
+        updated_at: nowTs,
+      });
+      resumed += 1;
+    }
+    return { ok: true, resumed };
   },
 });
 

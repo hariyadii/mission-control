@@ -19,7 +19,8 @@ type Action =
   | "status"
   | "kicker"
   | "normalize_states"
-  | "validation_cleanup";
+  | "validation_cleanup"
+  | "resume_lane";
 type TaskDoc = Doc<"tasks">;
 
 type PluginContext = {
@@ -107,6 +108,8 @@ const LEASE_MINUTES_BY_ASSIGNEE: Record<Assignee, number> = {
   agent: 45,
 };
 const RETRY_BACKOFF_MINUTES = [15, 60, 240];
+const FAILURE_FINGERPRINT_WINDOW_HOURS = 24;
+const FAILURE_FINGERPRINT_PAUSE_THRESHOLD = 3;
 const WORKFLOW_CRITICAL_ALERT_PREFIXES = ["backlog_idle:", "median_cycle_time_high:"];
 const BLOCKED_REASON_PATTERNS: Array<{ reason: string; pattern: RegExp; unblock: string }> = [
   {
@@ -489,6 +492,7 @@ type OpsIncidentState = {
   lastAutoRemediationActionEffective: boolean;
   opsExecutorHealthy: boolean;
   updatedAt: string;
+  stale?: boolean;
 };
 
 type OpsHealthSource = "systemd" | "cron" | "none";
@@ -515,6 +519,7 @@ type HandoffStateMeta = {
   readinessSource: "script" | "api_fallback" | "error" | "unknown";
   generatedFrom: string;
   generatedAt: string | null;
+  stale?: boolean;
 };
 
 function isCriticalWorkflowAlert(alert: string): boolean {
@@ -546,20 +551,35 @@ async function saveWorkflowAlertState(state: WorkflowAlertState): Promise<void> 
   await writeFile(WORKFLOW_ALERT_STATE_FILE, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
-async function loadOpsIncidentState(): Promise<OpsIncidentState> {
+// Maximum age for an ops incident state file before a critical/warning status
+// is considered stale and downgraded to normal to prevent stale NO_GO overrides.
+const OPS_INCIDENT_STATE_STALE_THRESHOLD_MINUTES = 45;
+
+async function loadOpsIncidentState(): Promise<OpsIncidentState & { stale: boolean }> {
   try {
     const raw = await readFile(OPS_STATE_FILE, "utf8");
     const parsed = JSON.parse(raw) as Partial<OpsIncidentState>;
     const status = String(parsed.status ?? "normal");
     const allowed = new Set(["normal", "warning", "critical", "recovering"]);
+    const updatedAt = typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date(0).toISOString();
+
+    // Stale incident cleanup: if this file is older than the threshold and reports
+    // a non-normal status, downgrade to "recovering" so fresh live signals win.
+    const ageMs = Date.now() - Date.parse(updatedAt);
+    const stale = Number.isFinite(ageMs) && ageMs > OPS_INCIDENT_STATE_STALE_THRESHOLD_MINUTES * 60 * 1000;
+    const rawStatus = allowed.has(status) ? (status as OpsIncidentState["status"]) : "normal";
+    const effectiveStatus: OpsIncidentState["status"] =
+      stale && (rawStatus === "critical" || rawStatus === "warning") ? "recovering" : rawStatus;
+
     return {
-      status: allowed.has(status) ? (status as OpsIncidentState["status"]) : "normal",
-      consecutiveCriticalChecks: Math.max(0, Math.floor(Number(parsed.consecutiveCriticalChecks ?? 0))),
+      status: effectiveStatus,
+      consecutiveCriticalChecks: stale ? 0 : Math.max(0, Math.floor(Number(parsed.consecutiveCriticalChecks ?? 0))),
       queueStallMinutes: Math.max(0, Math.floor(Number(parsed.queueStallMinutes ?? 0))),
       lastAutoRemediationAction: String(parsed.lastAutoRemediationAction ?? "none"),
       lastAutoRemediationActionEffective: parsed.lastAutoRemediationActionEffective === true,
       opsExecutorHealthy: parsed.opsExecutorHealthy !== false,
-      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date(0).toISOString(),
+      updatedAt,
+      stale,
     };
   } catch {
     return {
@@ -570,11 +590,16 @@ async function loadOpsIncidentState(): Promise<OpsIncidentState> {
       lastAutoRemediationActionEffective: false,
       opsExecutorHealthy: false,
       updatedAt: new Date(0).toISOString(),
+      stale: false,
     };
   }
 }
 
-async function loadHandoffStateMeta(): Promise<HandoffStateMeta> {
+// Maximum age for a handoff-state snapshot before it is considered stale and should not
+// be allowed to override a freshly computed healthy state.
+const HANDOFF_STATE_STALE_THRESHOLD_MINUTES = 30;
+
+async function loadHandoffStateMeta(): Promise<HandoffStateMeta & { stale: boolean }> {
   try {
     const raw = await readFile(HANDOFF_STATE_FILE, "utf8");
     const parsed = JSON.parse(raw) as Partial<{
@@ -595,11 +620,28 @@ async function loadHandoffStateMeta(): Promise<HandoffStateMeta> {
       typeof parsed.generated_from === "string" && parsed.generated_from.trim().length > 0
         ? parsed.generated_from.trim()
         : "ops-autopilot";
+
+    // Stale-snapshot guard: if the snapshot is older than the threshold and it reports
+    // snapshot_valid=false (NO_GO), treat it as stale so it cannot override a fresh
+    // healthy state that has been computed from live signals.
+    let stale = false;
+    if (generatedAt !== null) {
+      const snapshotAgeMs = Date.now() - Date.parse(generatedAt);
+      if (Number.isFinite(snapshotAgeMs) && snapshotAgeMs > HANDOFF_STATE_STALE_THRESHOLD_MINUTES * 60 * 1000) {
+        stale = true;
+      }
+    }
+
+    // If the snapshot is stale and claims snapshot_valid=false, do not honour it —
+    // return snapshotValid=true so a fresh live computation wins.
+    const snapshotValid = (stale && parsed.snapshot_valid !== true) ? true : parsed.snapshot_valid === true;
+
     return {
-      snapshotValid: parsed.snapshot_valid === true,
-      readinessSource,
+      snapshotValid,
+      readinessSource: stale ? "api_fallback" : readinessSource,
       generatedFrom,
       generatedAt,
+      stale,
     };
   } catch {
     return {
@@ -607,6 +649,7 @@ async function loadHandoffStateMeta(): Promise<HandoffStateMeta> {
       readinessSource: "unknown",
       generatedFrom: "unknown",
       generatedAt: null,
+      stale: false,
     };
   }
 }
@@ -712,6 +755,47 @@ type CronJobStateView = {
     runningAtMs?: number;
   };
 };
+
+type RunLockEntry = {
+  name: string;
+  runningAtMs: number;
+  elapsedMs: number;
+  budgetMs: number;
+  overBudget: boolean;
+};
+
+async function collectRunLocks(nowMs: number): Promise<{ locks: RunLockEntry[]; count: number }> {
+  try {
+    const raw = await readFile(CRON_JOBS_FILE, "utf8");
+    const parsed = JSON.parse(raw) as {
+      jobs?: Array<{
+        name?: string;
+        enabled?: boolean;
+        payload?: { timeoutSeconds?: number };
+        state?: { runningAtMs?: number };
+      }>;
+    };
+    const locks: RunLockEntry[] = [];
+    for (const job of parsed.jobs ?? []) {
+      if (job.enabled === false) continue;
+      const runningAtMs = Math.max(0, Math.floor(Number(job.state?.runningAtMs ?? 0)));
+      if (runningAtMs <= 0) continue;
+      const timeoutSeconds = Math.max(30, Math.floor(Number(job.payload?.timeoutSeconds ?? 180)));
+      const budgetMs = (timeoutSeconds + 90) * 1000;
+      const elapsedMs = nowMs - runningAtMs;
+      locks.push({
+        name: String(job.name ?? "unknown"),
+        runningAtMs,
+        elapsedMs,
+        budgetMs,
+        overBudget: elapsedMs > budgetMs,
+      });
+    }
+    return { locks, count: locks.length };
+  } catch {
+    return { locks: [], count: 0 };
+  }
+}
 
 async function collectConsecutiveCronErrorsByJob(): Promise<Record<string, number>> {
   try {
@@ -2692,6 +2776,7 @@ async function runStatus(client: ConvexHttpClient) {
     nextAlerts.length === 0 ? "none" : sustainedCriticalAlerts >= 2 ? "critical" : "warning";
   const consecutiveCronErrorsByJob = await collectConsecutiveCronErrorsByJob();
   const activeCronErrors = Object.keys(consecutiveCronErrorsByJob).length;
+  const runLocksSnapshot = await collectRunLocks(nowMs);
   const validationLoopTasks = allTasks.filter(
     (task) => task.status !== "done" && task.status !== "blocked" && (task.same_reason_fail_streak ?? 0) >= 3
   ).length;
@@ -2792,6 +2877,8 @@ async function runStatus(client: ConvexHttpClient) {
       oldestBacklogAgeMinutes,
       consecutiveCronErrorsByJob,
       activeCronErrors,
+      runLocks: runLocksSnapshot.locks,
+      runLocksCount: runLocksSnapshot.count,
       consecutiveCriticalChecks: opsIncidentState.consecutiveCriticalChecks,
       queueStallMinutes,
       lastAutoRemediationAction: opsIncidentState.lastAutoRemediationAction,
@@ -2804,6 +2891,7 @@ async function runStatus(client: ConvexHttpClient) {
       opsTimersHealthy,
       readinessSource: handoffStateMeta.readinessSource,
       handoffSnapshotValid: handoffStateMeta.snapshotValid,
+      handoffSnapshotStale: handoffStateMeta.stale ?? false,
       handoffGeneratedFrom: handoffStateMeta.generatedFrom,
       handoffGeneratedAt: handoffStateMeta.generatedAt,
       opsOpenIncidentTasks,
@@ -3090,10 +3178,61 @@ async function runKicker(client: ConvexHttpClient) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Stability-hardening-v2 helpers
+// ---------------------------------------------------------------------------
+
+/** Build a stable failure fingerprint from validation reason + assignee lane. */
+function buildFailureFingerprint(assignee: Assignee, validationReason: string): string {
+  const key = `${assignee}:${validationReason.replace(/\s+/g, "_").slice(0, 80)}`;
+  return key;
+}
+
+/**
+ * Count how many tasks in the same lane share a given failure fingerprint within
+ * the last 24 h, using only the in-memory task snapshot (no extra DB query).
+ */
+function countFingerprintHits(
+  tasks: TaskDoc[],
+  assignee: Assignee,
+  fingerprint: string,
+  nowMs: number
+): number {
+  const windowMs = FAILURE_FINGERPRINT_WINDOW_HOURS * 60 * 60 * 1000;
+  const cutoffMs = nowMs - windowMs;
+  return tasks.filter((t) => {
+    if (t.assigned_to !== assignee) return false;
+    if ((t as TaskDoc & { failure_fingerprint?: string }).failure_fingerprint !== fingerprint) return false;
+    const updatedMs = Date.parse(String(t.updated_at ?? ""));
+    return Number.isFinite(updatedMs) && updatedMs >= cutoffMs;
+  }).length;
+}
+
+/** Return true if the lane for this assignee is currently paused. */
+function isLanePaused(tasks: TaskDoc[], assignee: Assignee): boolean {
+  return tasks.some(
+    (t) =>
+      t.assigned_to === assignee &&
+      (t as TaskDoc & { lane_paused?: boolean }).lane_paused === true
+  );
+}
+
 async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
   const assignee = normalizeAssignee(requestedAssignee, "agent");
   await resetWorkerCronSessionIfNeeded(assignee);
   const allTasks = await loadAllTasks(client);
+
+  // Lane-pause guard: if the lane is paused, surface a clear error instead of silently
+  // re-claiming work that will fail again with the same fingerprint.
+  if (isLanePaused(allTasks, assignee)) {
+    return {
+      ok: false,
+      action: "claim" as const,
+      task: null,
+      message: "lane_paused",
+      reason: "lane_auto_paused_due_to_repeated_fingerprint_failures",
+    };
+  }
 
   // Resume owned in-progress first when lease is still fresh.
   // If lease is stale, requeue to backlog so workers can recover automatically.
@@ -3109,24 +3248,34 @@ async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
     const isStale = nowMs - activityMs > leaseMs;
 
     if (!isStale) {
+      // Idempotent claim guard: if the lease is still fresh (not yet expired), return
+      // the existing claim without re-writing — prevents duplicate mutation storms.
+      const leaseUntilMs = candidate.lease_until ? Date.parse(candidate.lease_until) : 0;
+      const isDuplicateClaim = leaseUntilMs > nowMs;
+
       const cleanedDesc = stripStaleLeaseMarkers(candidate.description);
       if (cleanedDesc !== (candidate.description ?? "").trim()) {
         await client.mutation(api.tasks.updateTask, { id: candidate._id, description: cleanedDesc });
       }
-      const leaseUntilIso = new Date(nowMs + leaseMs).toISOString();
-      await client.mutation(api.tasks.updateTask, {
-        id: candidate._id,
-        owner: assignee,
-        lease_until: leaseUntilIso,
-        heartbeat_at: new Date(nowMs).toISOString(),
-        retry_count_run: 0,
-        validation_status: "pending",
-      });
+
+      if (!isDuplicateClaim) {
+        const leaseUntilIso = new Date(nowMs + leaseMs).toISOString();
+        await client.mutation(api.tasks.updateTask, {
+          id: candidate._id,
+          owner: assignee,
+          lease_until: leaseUntilIso,
+          heartbeat_at: new Date(nowMs).toISOString(),
+          retry_count_run: 0,
+          validation_status: "pending",
+        });
+      }
+
       const requiredDraftPath = getDraftPath(String(candidate._id), assignee);
       return {
         ok: true,
         action: "claim" as const,
         resumed: true,
+        ...(isDuplicateClaim ? { guard: "duplicate_claim_guard" } : {}),
         task: {
           id: String(candidate._id),
           title: candidate.title,
@@ -3184,6 +3333,34 @@ async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
   }
 
   const claimNowMs = Date.now();
+
+  // Idempotent claim guard: re-fetch the task right before claiming to detect concurrent
+  // claim within the same lease window (race condition between two worker invocations).
+  const freshSelected = await client.query(api.tasks.list, {}).then(
+    (tasks) => tasks.find((t) => String(t._id) === String(selected!._id))
+  );
+  if (freshSelected && freshSelected.status === "in_progress" && freshSelected.owner === assignee) {
+    const requiredDraftPath = getDraftPath(String(freshSelected._id), assignee);
+    return {
+      ok: true,
+      action: "claim" as const,
+      resumed: true,
+      guard: "duplicate_claim_guard",
+      task: {
+        id: String(freshSelected._id),
+        title: freshSelected.title,
+        description: freshSelected.description ?? "",
+        assigned_to: freshSelected.assigned_to,
+        status: freshSelected.status,
+        workflow_contract_version: "v2",
+        required_draft_path: requiredDraftPath,
+      },
+    };
+  }
+  if (freshSelected && freshSelected.status !== "backlog") {
+    return { ok: true, action: "claim" as const, task: null, message: "no_matching_backlog_task" };
+  }
+
   const claimNowIso = new Date(claimNowMs).toISOString();
   const claimLeaseUntilIso = new Date(claimNowMs + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
   const cleanedSelectedDesc = stripStaleLeaseMarkers(selected.description);
@@ -3971,6 +4148,18 @@ async function runComplete(
     return { ok: false, error: `task not found: ${taskId}` };
   }
 
+  // Idempotent complete guard: if task was already completed (done), return early
+  // with an explicit guard reason instead of erroring or re-processing.
+  if (task.status === "done") {
+    return {
+      ok: true,
+      action: "complete" as const,
+      taskId,
+      guard: "duplicate_complete_guard",
+      resultStatus: "done" as const,
+    };
+  }
+
   const assignee = normalizeAssignee(requestedAssignee ?? task.assigned_to, task.assigned_to);
   const outputStr = typeof output === "string" ? output.trim() : "";
   const artifactPath =
@@ -4043,6 +4232,45 @@ async function runComplete(
       ? task.remediation_task_id
       : undefined;
   const isRemediationTask = /^Remediate validation loop:/i.test(task.title);
+
+  // ---------------------------------------------------------------------------
+  // Failure fingerprint breaker (stability-hardening-v2)
+  // Build a fingerprint from assignee + validation reason.  If the same fingerprint
+  // has fired >= 3 times in 24 h for this lane, auto-pause the lane and create a
+  // remediation task for the operator.  This fires on every failure, so the counter
+  // increments before the pause check runs.
+  // ---------------------------------------------------------------------------
+  let lanePausedByFingerprint = false;
+  let fingerprintPauseReason: string | undefined;
+  if (validation.status === "fail" && currentValidationReason) {
+    const fp = buildFailureFingerprint(assignee, currentValidationReason);
+      // Stamp the fingerprint on the current task so the index query can count it.
+      await client.mutation(api.tasks.updateTask, { id: task._id, failure_fingerprint: fp });
+      const nowMs = Date.now();
+      const hitCount = countFingerprintHits(allTasks, assignee, fp, nowMs) + 1; // +1 for this new failure
+      if (hitCount >= FAILURE_FINGERPRINT_PAUSE_THRESHOLD && !isLanePaused(allTasks, assignee)) {
+        lanePausedByFingerprint = true;
+        fingerprintPauseReason = `failure_fingerprint_${hitCount}x:${fp}`;
+        // Fire-and-forget the lane pause — the remediation task is created inside pauseLane.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await client.mutation(api.tasks.pauseLane as any, {
+          assignee,
+          reason: fingerprintPauseReason,
+          remediationTitle: `[OPS] Remediate lane pause (${assignee}): ${fp.slice(0, 60)}`,
+          remediationDescription: [
+            `Lane auto-paused after ${hitCount} failures with fingerprint: ${fp}`,
+            `Assignee: ${assignee}`,
+            `Paused at: ${new Date(nowMs).toISOString()}`,
+            "",
+            "Resolution steps:",
+            "1. Identify root cause of repeated failure pattern.",
+            "2. Fix the underlying issue (prompt, validator, or worker config).",
+            "3. Call action=resume_lane with assignee to re-enable the lane.",
+            "4. Verify one successful complete cycle.",
+          ].join("\n"),
+        });
+      }
+  }
 
   if (validation.status === "fail" && !reviewTask && !novaUiHandoff && blockedOutcome.blocked) {
     finalStatus = "blocked";
@@ -4255,6 +4483,7 @@ async function runComplete(
     same_reason_fail_streak: sameReasonFailStreak,
     retry_count_total: retryTotal,
     recommended_backoff_minutes: nextBackoff,
+    ...(lanePausedByFingerprint ? { lane_paused: true, lane_paused_reason: fingerprintPauseReason } : {}),
   };
 }
 
@@ -4394,6 +4623,18 @@ async function runValidationCleanup(client: ConvexHttpClient, requestedMax: unkn
   };
 }
 
+async function runResumeLane(client: ConvexHttpClient, requestedAssignee: unknown) {
+  const assignee = normalizeAssignee(requestedAssignee, "agent");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = await client.mutation(api.tasks.resumeLane as any, { assignee });
+  return {
+    ok: true,
+    action: "resume_lane" as const,
+    assignee,
+    ...(result as object),
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({} as Record<string, unknown>));
@@ -4465,6 +4706,11 @@ export async function POST(request: Request) {
         (body as Record<string, unknown>).max,
         (body as Record<string, unknown>).minAgeMinutes
       );
+      return NextResponse.json(result);
+    }
+
+    if (action === "resume_lane") {
+      const result = await runResumeLane(client, (body as Record<string, unknown>).assignee);
       return NextResponse.json(result);
     }
 
