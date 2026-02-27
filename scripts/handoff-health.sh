@@ -3,6 +3,11 @@ set -euo pipefail
 
 ROOT="/home/ubuntu/mission-control"
 READINESS_SCRIPT="$ROOT/scripts/autonomy-readiness-check.sh"
+# Stability-hardening-v2: state file for consecutive-failure counting to prevent
+# false NO_GO from transient single-signal anomalies.
+REPORT_DIR="/home/ubuntu/.openclaw/workspace/reports"
+HANDOFF_STATE_FILE="$REPORT_DIR/handoff-health-state.json"
+mkdir -p "$REPORT_DIR"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "handoff-health: jq is required but not installed"
@@ -37,6 +42,15 @@ done_verified_pass="$(echo "$status_json" | jq -r '.workflowHealth.done_verified
 done_with_fail_validation="$(echo "$status_json" | jq -r '.workflowHealth.done_with_fail_validation // 0')"
 done_unclassified=$(( done_total - done_verified_pass - done_with_fail_validation ))
 
+# ---------------------------------------------------------------------------
+# Stability-hardening-v2: consecutive-failure counters per criterion.
+# A criterion must fail on N >= 2 consecutive observations before it triggers
+# NO_GO (prevents single-signal transient anomalies from blocking handoff).
+# ---------------------------------------------------------------------------
+prev_cron_fail_consecutive="$(jq -r '.cron_fail_consecutive // 0' "$HANDOFF_STATE_FILE" 2>/dev/null || echo 0)"
+prev_queue_fail_consecutive="$(jq -r '.queue_fail_consecutive // 0' "$HANDOFF_STATE_FILE" 2>/dev/null || echo 0)"
+prev_ops_fail_consecutive="$(jq -r '.ops_fail_consecutive // 0' "$HANDOFF_STATE_FILE" 2>/dev/null || echo 0)"
+
 pass_readiness=true
 pass_cron=true
 pass_queue=true
@@ -47,6 +61,8 @@ cron_severity="none"
 
 reasons=()
 
+# Readiness criterion: sustained_failure requires consecutive failures from the
+# readiness-check script itself — already guards against single-check transients.
 if [[ "$ready" != "yes" || "$sustained_failure" == "true" ]]; then
   pass_readiness=false
   reasons+=("readiness_not_green")
@@ -55,17 +71,45 @@ fi
 if [[ -z "${enabled_errors:-}" ]]; then
   enabled_errors=999
 fi
+
+# Cron criterion: require 2 consecutive observations before hard-failing.
+cron_fail_this_run=false
 if (( enabled_errors >= 2 )); then
-  pass_cron=false
-  reasons+=("enabled_cron_errors=$enabled_errors")
+  cron_fail_this_run=true
   cron_severity="critical"
 elif (( enabled_errors == 1 )); then
   cron_severity="warning"
 fi
+cron_fail_consecutive=0
+if [[ "$cron_fail_this_run" == "true" ]]; then
+  if [[ "$prev_cron_fail_consecutive" =~ ^[0-9]+$ ]]; then
+    cron_fail_consecutive=$(( prev_cron_fail_consecutive + 1 ))
+  else
+    cron_fail_consecutive=1
+  fi
+fi
+# Only block on >= 2 consecutive cron failures (single-signal tolerance).
+if (( cron_fail_consecutive >= 2 )); then
+  pass_cron=false
+  reasons+=("enabled_cron_errors=${enabled_errors}_consecutive=${cron_fail_consecutive}")
+fi
 
+# Queue criterion: require 2 consecutive observations before hard-failing.
+queue_fail_this_run=false
 if (( backlog > 0 && in_progress == 0 && oldest_backlog_age > 45 )); then
+  queue_fail_this_run=true
+fi
+queue_fail_consecutive=0
+if [[ "$queue_fail_this_run" == "true" ]]; then
+  if [[ "$prev_queue_fail_consecutive" =~ ^[0-9]+$ ]]; then
+    queue_fail_consecutive=$(( prev_queue_fail_consecutive + 1 ))
+  else
+    queue_fail_consecutive=1
+  fi
+fi
+if (( queue_fail_consecutive >= 2 )); then
   pass_queue=false
-  reasons+=("backlog_stuck_over_45m")
+  reasons+=("backlog_stuck_over_45m_consecutive=${queue_fail_consecutive}")
 fi
 
 # Throughput integrity check:
@@ -82,9 +126,22 @@ if (( done_verified_pass < done_with_fail_validation )); then
   reasons+=("verified_pass_below_fail_validation")
 fi
 
+# Ops criterion: require 2 consecutive observations before hard-failing.
+ops_fail_this_run=false
 if [[ "${ops_health_source:-none}" != "none" && "${ops_executor_healthy:-false}" != "true" ]]; then
+  ops_fail_this_run=true
+fi
+ops_fail_consecutive=0
+if [[ "$ops_fail_this_run" == "true" ]]; then
+  if [[ "$prev_ops_fail_consecutive" =~ ^[0-9]+$ ]]; then
+    ops_fail_consecutive=$(( prev_ops_fail_consecutive + 1 ))
+  else
+    ops_fail_consecutive=1
+  fi
+fi
+if (( ops_fail_consecutive >= 2 )); then
   pass_ops=false
-  reasons+=("ops_executor_unhealthy")
+  reasons+=("ops_executor_unhealthy_consecutive=${ops_fail_consecutive}")
 fi
 
 # Block handoff if too many tasks are stuck in a validation loop (queue debt threshold = 3).
@@ -92,6 +149,17 @@ if (( ${validation_loop_tasks:-0} >= 3 )); then
   pass_validation_loops=false
   reasons+=("validation_loop_tasks=${validation_loop_tasks}")
 fi
+
+# Persist consecutive counters atomically.
+STATE_TMP="$(mktemp "${HANDOFF_STATE_FILE}.XXXXXX")"
+jq -cn \
+  --argjson cron "$cron_fail_consecutive" \
+  --argjson queue "$queue_fail_consecutive" \
+  --argjson ops "$ops_fail_consecutive" \
+  --arg updated_at "$(date -Iseconds)" \
+  '{cron_fail_consecutive:$cron,queue_fail_consecutive:$queue,ops_fail_consecutive:$ops,updated_at:$updated_at}' \
+  > "$STATE_TMP"
+mv -f "$STATE_TMP" "$HANDOFF_STATE_FILE"
 
 go_no_go="GO"
 if [[ "$pass_readiness" != true || "$pass_cron" != true || "$pass_queue" != true || "$pass_throughput" != true || "$pass_ops" != true || "$pass_validation_loops" != true ]]; then
@@ -120,10 +188,10 @@ echo "HANDOFF_HEALTH"
 echo "timestamp=$(date -Iseconds)"
 echo "go_no_go=$go_no_go"
 echo "criterion_readiness=$label_readiness ready=${ready:-unknown} readiness_severity=${readiness_severity:-unknown} sustained_failure=${sustained_failure:-unknown} workflow_severity=${wf_severity} sustained_alerts=${sustained_alerts}"
-echo "criterion_enabled_cron_errors_window=$label_cron enabled_errors=$enabled_errors cron_severity=$cron_severity"
-echo "criterion_queue_no_stuck_backlog=$label_queue suggested=$suggested backlog=$backlog in_progress=$in_progress blocked=$blocked oldest_backlog_age_minutes=$oldest_backlog_age"
+echo "criterion_enabled_cron_errors_window=$label_cron enabled_errors=$enabled_errors cron_severity=$cron_severity cron_fail_consecutive=$cron_fail_consecutive"
+echo "criterion_queue_no_stuck_backlog=$label_queue suggested=$suggested backlog=$backlog in_progress=$in_progress blocked=$blocked oldest_backlog_age_minutes=$oldest_backlog_age queue_fail_consecutive=$queue_fail_consecutive"
 echo "criterion_throughput_integrity=$label_throughput done_total=$done_total done_verified_pass=$done_verified_pass done_with_fail_validation=$done_with_fail_validation done_unclassified=$done_unclassified verified_pass_pct=$verified_pct"
-echo "criterion_ops_executor=$label_ops ops_health_source=${ops_health_source:-none} ops_executor_healthy=${ops_executor_healthy:-false} ops_timers_healthy=${ops_timers_healthy:-false}"
+echo "criterion_ops_executor=$label_ops ops_health_source=${ops_health_source:-none} ops_executor_healthy=${ops_executor_healthy:-false} ops_timers_healthy=${ops_timers_healthy:-false} ops_fail_consecutive=$ops_fail_consecutive"
 echo "criterion_validation_loops=$label_validation_loops validation_loop_tasks=${validation_loop_tasks:-0}"
 echo "active_cron_errors=${active_cron_errors:-0}"
 if (( ${#reasons[@]} > 0 )); then
