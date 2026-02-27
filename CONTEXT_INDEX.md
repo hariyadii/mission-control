@@ -49,10 +49,32 @@ git cherry-pick <sha1> <sha2> ...
 - `/home/ubuntu/.openclaw/workspace/reports/`
 - `/home/ubuntu/.openclaw/workspace/memory/CHANGELOG_LEARNING_LEDGER.md`
 
-## Do Not Load (Secrets)
+## OpenClaw Context (Required For Ops-Aware IDEs)
+- OpenClaw home: `/home/ubuntu/.openclaw`
+- Main config: `/home/ubuntu/.openclaw/openclaw.json`
+- Agent configs: `/home/ubuntu/.openclaw/agents/*/agent/`
+- Cron scheduler state: `/home/ubuntu/.openclaw/cron/jobs.json`
+- Ops/runtime reports: `/home/ubuntu/.openclaw/workspace/reports/`
+- Memory index and lessons: `/home/ubuntu/.openclaw/workspace/memory/`
+
+## OpenClaw Official Docs
+- Main docs: `https://docs.openclaw.ai`
+- CLI cron: `https://docs.openclaw.ai/cli/cron`
+- Skills: `https://docs.openclaw.ai/tools/skills`
+- Skills config: `https://docs.openclaw.ai/tools/skills-config`
+- Plugin tool: `https://docs.openclaw.ai/tools/plugin`
+- Community plugins: `https://docs.openclaw.ai/plugins/community`
+
+## Sensitive Files (Load Carefully)
 - `~/.openclaw/openclaw.json`
 - `~/.openclaw/agents/*/agent/auth-profiles.json`
 - Any `.env*` file containing API keys/tokens
+
+Policy:
+- These files may be loaded for operational understanding and debugging.
+- Never print full secret values in logs, chat output, changelog, commits, or PR descriptions.
+- When showing examples, redact tokens (e.g., `sk-***`, `ghp_***`).
+- Any write/edit affecting auth/provider keys must include explicit rollback notes.
 
 ## Current Operating Model (High Level)
 - Mission Control is the source of truth for queue + autonomy APIs.
