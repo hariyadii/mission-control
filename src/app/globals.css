@@ -107,7 +107,12 @@
    RESET
    ═══════════════════════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { min-height: 100%; }
+
+/* Full-height root for scroll isolation */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
 
 body {
   margin: 0;
@@ -138,13 +143,43 @@ a { color: inherit; text-decoration: none; }
 @layer components {
 
   /* ── App Shell ─────────────────────────────────────────────── */
-  .app-shell   { @apply min-h-screen; }
+  /* Scroll isolation: app-shell is the full-viewport flex container */
+  .app-shell {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
 
-  /* Command bar spacer — main content starts below the sticky bar */
+  /* Sidebar: fixed height, independent scroll */
+  .sidebar-root {
+    flex-shrink: 0;
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* Command bar spacer — main content scrolls independently */
   .content-wrap {
-    @apply flex-1 overflow-y-auto overflow-x-hidden;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: var(--sp-5) var(--sp-5) var(--sp-8);
     padding-top: calc(var(--command-bar-h) + var(--sp-5));
+  }
+
+  /* ── Scroll isolation utilities ─────────────────────────────── */
+  /* Use these on any container that should scroll independently */
+  .scroll-isolated {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .scroll-parent {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   /* ── Sticky Command Bar ────────────────────────────────────── */
@@ -437,9 +472,14 @@ a { color: inherit; text-decoration: none; }
     width: 0 !important;
     min-width: 0 !important;
     border-right: none !important;
+    /* On mobile, sidebar is fixed/off-canvas, not in flex flow */
+    position: fixed !important;
+    height: 100vh !important;
   }
   .sidebar-root[data-mobile="true"] {
     width: var(--sidebar-expanded-w) !important;
+    position: fixed !important;
+    height: 100vh !important;
   }
   .app-shell   { padding-left: 0 !important; }
   /* Leave room for the hamburger button */

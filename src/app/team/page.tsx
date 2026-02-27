@@ -229,7 +229,7 @@ export default function TeamPage() {
   }, [tasks]);
 
   return (
-    <div className="space-y-5 page-enter">
+    <div className="flex flex-col gap-5 page-enter">
 
       {/* ── Command Bar ── */}
       <CommandBar

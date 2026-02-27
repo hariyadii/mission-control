@@ -117,7 +117,7 @@ function DeskCard({ desk }: { desk: (typeof desks)[0] }) {
 
 export default function OfficePage() {
   return (
-    <div className="space-y-4 page-enter">
+    <div className="flex flex-col gap-4 page-enter">
       <PageHeader title="Office" subtitle="Issue work orders to agents" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {desks.map((d) => <DeskCard key={d.code} desk={d} />)}

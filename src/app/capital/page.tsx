@@ -95,7 +95,7 @@ export default function CapitalPage() {
   const pnlPositive = p ? p.totalPnl >= 0 : null;
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="flex flex-col gap-4 page-enter">
       <PageHeader
         title="Capital"
         subtitle="Lyra portfolio & trades"

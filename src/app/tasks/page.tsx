@@ -694,7 +694,7 @@ export default function TasksPage() {
   const hasFilter  = filterStatus !== "all" || filterAssignee !== "all" || searchQuery || dateFrom || dateTo;
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="flex flex-col gap-4 page-enter">
 
       {/* Header */}
       <PageHeader
@@ -807,9 +807,9 @@ export default function TasksPage() {
                 </span>
               </div>
 
-              {/* Task cards */}
+              {/* Task cards — scroll-isolated column body */}
               <div
-                className="flex-1 space-y-1.5 p-2 panel-soft rounded-t-none min-h-[180px] overflow-y-auto border-t-0"
+                className="flex-1 min-h-0 space-y-1.5 p-2 panel-soft rounded-t-none min-h-[180px] overflow-y-auto border-t-0"
                 style={{ maxHeight: "max(200px, calc(100vh - 300px))" }}
               >
                 {colTasks.map((task) => (

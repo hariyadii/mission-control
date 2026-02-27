@@ -207,7 +207,7 @@ export default function MemoryPage() {
   const availableTags = Object.keys(tagCounts).filter((k) => k !== "all");
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="flex flex-col gap-4 page-enter">
       <PageHeader
         title="Memory"
         subtitle="Search workspace memory & daily logs"

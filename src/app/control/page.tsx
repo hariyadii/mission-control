@@ -380,7 +380,7 @@ export default function ControlPage() {
   const hasActionable = critAlerts.length > 0;
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="flex flex-col gap-4 page-enter">
       <PageHeader
         title="Control"
         subtitle="Kill switch, policy & workflow health"

@@ -85,7 +85,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="flex flex-col gap-4 page-enter">
       <PageHeader
         title="Calendar"
         subtitle="Schedule & notes"
