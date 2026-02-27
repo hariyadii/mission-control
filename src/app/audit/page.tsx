@@ -270,7 +270,7 @@ export default function AuditPage() {
   const hasTaskIdEntries = filtered.some((e) => !!e.taskId);
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="flex flex-col gap-4 page-enter">
       <PageHeader
         title="Audit"
         subtitle="Action history & execution trace"
@@ -350,9 +350,9 @@ export default function AuditPage() {
         <LifecycleTimeline entries={filtered} />
       )}
 
-      {/* Audit list */}
-      <div className="panel-glass p-2.5">
-        <div className="overflow-y-auto" style={{ maxHeight: "max(240px, calc(100vh - 400px))" }}>
+      {/* Audit list — scroll-isolated */}
+      <div className="panel-glass p-2.5 flex flex-col min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto" style={{ maxHeight: "max(240px, calc(100vh - 400px))" }}>
           {sortedFiltered.length > 0 ? (
             sortedFiltered.slice(0, 100).map((entry) => (
               <AuditRow key={entry.id} entry={entry} showPhase={!showTimeline} />

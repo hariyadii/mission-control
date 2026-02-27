@@ -3,6 +3,7 @@ import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import Sidebar from "@/components/Sidebar";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
+import { MissionControlProvider } from "@/contexts";
 
 export const metadata: Metadata = {
   title: "Mission Control",
@@ -16,14 +17,18 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" style={{ height: "100%" }}>
+      <body style={{ height: "100%", overflow: "hidden" }}>
         <ConvexClientProvider>
-          <div className="app-shell flex min-h-screen">
-            <Sidebar />
-            <main className="content-wrap">{children}</main>
-          </div>
-          <KeyboardShortcuts />
+          <MissionControlProvider>
+            {/* app-shell: height:100vh, overflow:hidden, flex row */}
+            <div className="app-shell">
+              <Sidebar />
+              {/* content-wrap: flex:1, min-height:0, overflow-y:auto */}
+              <main className="content-wrap">{children}</main>
+            </div>
+            <KeyboardShortcuts />
+          </MissionControlProvider>
         </ConvexClientProvider>
       </body>
     </html>
