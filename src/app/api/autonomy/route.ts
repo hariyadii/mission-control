@@ -3187,14 +3187,19 @@ async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
   const claimNowIso = new Date(claimNowMs).toISOString();
   const claimLeaseUntilIso = new Date(claimNowMs + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
   const cleanedSelectedDesc = stripStaleLeaseMarkers(selected.description);
-  await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "in_progress" });
+  // Single atomic mutation: set status + owner + lease in one call to avoid
+  // a zombie window where status=in_progress but owner is not yet written.
   await client.mutation(api.tasks.updateTask, {
     id: selected._id,
+    status: "in_progress",
     owner: assignee,
     lease_until: claimLeaseUntilIso,
     heartbeat_at: claimNowIso,
     retry_count_run: 0,
     validation_status: "pending",
+    blocked_reason: undefined,
+    blocked_until: undefined,
+    unblock_signal: undefined,
     ...(cleanedSelectedDesc !== (selected.description ?? "").trim() ? { description: cleanedSelectedDesc } : {}),
   });
   const requiredDraftPath = getDraftPath(String(selected._id), assignee);
@@ -4262,7 +4267,13 @@ async function runHeartbeat(client: ConvexHttpClient, taskId: unknown, requested
   const task = allTasks.find((t) => String(t._id) === taskId);
   if (!task) return { ok: false, action: "heartbeat" as const, reason: "not_found" };
   if (task.status !== "in_progress") return { ok: false, action: "heartbeat" as const, reason: "not_in_progress" };
-  if (task.assigned_to !== assignee && !(assignee === "sam" && task.assigned_to === "agent")) {
+  // Check both assigned_to and owner — a task can have a different current owner
+  // if it was reclaimed after a stale lease (owner field is the authoritative lock holder).
+  const ownerMatch =
+    task.assigned_to === assignee || (assignee === "sam" && task.assigned_to === "agent");
+  const ownerFieldMatch =
+    !task.owner || task.owner === assignee || (assignee === "sam" && task.owner === "agent");
+  if (!ownerMatch || !ownerFieldMatch) {
     return { ok: false, action: "heartbeat" as const, reason: "owner_mismatch" };
   }
 

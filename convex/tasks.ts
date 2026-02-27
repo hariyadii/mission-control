@@ -344,6 +344,7 @@ export const requeueExpiredLeases = mutation({
         status: "backlog",
         owner: undefined,
         lease_until: undefined,
+        heartbeat_at: undefined,
         blocked_reason: undefined,
         blocked_until: undefined,
         unblock_signal: undefined,
