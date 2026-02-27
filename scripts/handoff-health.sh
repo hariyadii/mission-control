@@ -73,7 +73,9 @@ fi
 # - allow a temporary unclassified bucket (legacy/in-flight validation tasks)
 if (( done_unclassified < 0 )); then
   pass_throughput=false
-  reasons+=("done_bucket_overflow")
+  # Negative unclassified = verified_pass + fail_validation exceeds done_total;
+  # most likely a timing window between status API reads. Label clearly for triage.
+  reasons+=("done_bucket_inconsistency:done_total=${done_total},verified_pass=${done_verified_pass},fail_validation=${done_with_fail_validation}")
 fi
 if (( done_verified_pass < done_with_fail_validation )); then
   pass_throughput=false

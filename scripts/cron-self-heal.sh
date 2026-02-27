@@ -208,8 +208,15 @@ if (( resolved_after > auto_recovered )); then
   auto_recovered="$resolved_after"
 fi
 
+severity_out="ok"
+if (( stuck_running > 0 || escalated > 0 )); then
+  severity_out="critical"
+elif (( remaining_errors > 0 || pending > 0 )); then
+  severity_out="warning"
+fi
 summary="$(jq -cn \
   --arg timestamp "$timestamp" \
+  --arg severity "$severity_out" \
   --argjson checked "$checked" \
   --argjson retried "$retried" \
   --argjson autoRecovered "$auto_recovered" \
@@ -217,7 +224,7 @@ summary="$(jq -cn \
   --argjson stuckRunning "$stuck_running" \
   --argjson escalated "$escalated" \
   --argjson remainingErrors "$remaining_errors" \
-  '{timestamp:$timestamp,checked:$checked,retried:$retried,autoRecovered:$autoRecovered,pending:$pending,stuckRunning:$stuckRunning,escalated:$escalated,remainingErrors:$remainingErrors}')"
+  '{timestamp:$timestamp,severity:$severity,checked:$checked,retried:$retried,autoRecovered:$autoRecovered,pending:$pending,stuckRunning:$stuckRunning,escalated:$escalated,remainingErrors:$remainingErrors}')"
 
 printf '%s\n' "$summary" >> "$HEAL_LOG"
 printf '%s\n' "$summary"
