@@ -772,7 +772,7 @@ async function collectRunLocks(nowMs: number): Promise<{ locks: RunLockEntry[]; 
         name?: string;
         enabled?: boolean;
         payload?: { timeoutSeconds?: number };
-        state?: { runningAtMs?: number };
+        state?: { runningAtMs?: number; lastRunAtMs?: number; lastStatus?: string };
       }>;
     };
     const locks: RunLockEntry[] = [];
@@ -783,6 +783,12 @@ async function collectRunLocks(nowMs: number): Promise<{ locks: RunLockEntry[]; 
       const timeoutSeconds = Math.max(30, Math.floor(Number(job.payload?.timeoutSeconds ?? 180)));
       const budgetMs = (timeoutSeconds + 90) * 1000;
       const elapsedMs = nowMs - runningAtMs;
+      const lastRunAtMs = Math.max(0, Math.floor(Number(job.state?.lastRunAtMs ?? 0)));
+      const lastStatus = String(job.state?.lastStatus ?? "").toLowerCase();
+      const hasTerminalRunAfterLock = lastRunAtMs >= runningAtMs && (lastStatus === "ok" || lastStatus === "error");
+      const staleByAge = elapsedMs > Math.max(budgetMs * 3, 30 * 60 * 1000);
+      // Guard stale lock artifacts: only surface run-locks that are plausibly active.
+      if (hasTerminalRunAfterLock || staleByAge) continue;
       locks.push({
         name: String(job.name ?? "unknown"),
         runningAtMs,
