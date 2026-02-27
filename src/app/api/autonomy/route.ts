@@ -1016,6 +1016,15 @@ function isSamCorePlatformTask(task: TaskDoc): boolean {
   return SAM_CORE_PLATFORM_KEYWORDS.some((kw) => combined.includes(kw));
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function containsKeyword(input: string, keyword: string): boolean {
+  const pattern = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, "i");
+  return pattern.test(input);
+}
+
 function isRiskyOrVague(task: TaskDoc): string | null {
   const combined = `${task.title} ${task.description ?? ""}`.trim().toLowerCase();
   const revisedByGuardrail = hasGuardrailRevisionMarker(task.description);
@@ -1034,12 +1043,12 @@ function isRiskyOrVague(task: TaskDoc): string | null {
   if (!revisedByGuardrail && descWords < 8) return "description_too_short";
 
   for (const keyword of RISKY_KEYWORDS) {
-    if (combined.includes(keyword)) return `risky_keyword:${keyword}`;
+    if (containsKeyword(combined, keyword)) return `risky_keyword:${keyword}`;
   }
 
   if (!revisedByGuardrail) {
     for (const keyword of VAGUE_KEYWORDS) {
-      if (combined.includes(keyword)) return `vague_keyword:${keyword}`;
+      if (containsKeyword(combined, keyword)) return `vague_keyword:${keyword}`;
     }
   }
 
@@ -1409,6 +1418,7 @@ async function runGuardrail(client: ConvexHttpClient, requestedMax: unknown) {
     if (riskyOrVagueReason) {
       await client.mutation(api.tasks.remove, { id: taskForChecks._id });
       rejected.push({ id: taskForChecks._id, title: taskForChecks.title, reason: riskyOrVagueReason });
+      if (normalized.length > 0) duplicateBlocklist.add(normalized);
       continue;
     }
 
@@ -2146,7 +2156,8 @@ async function appendExecutorRunLog(entry: WorkerRunLogEntry): Promise<void> {
 }
 
 async function appendFailureNote(client: ConvexHttpClient, task: TaskDoc, errorMessage: string, timestamp: string): Promise<void> {
-  const previousDescription = task.description?.trim() ?? "";
+  const latest = (await loadAllTasks(client)).find((candidate) => String(candidate._id) === String(task._id)) ?? task;
+  const previousDescription = latest.description?.trim() ?? "";
   const failureNote = `Worker failure (${timestamp}): ${errorMessage}`;
   const newDescription = previousDescription ? `${previousDescription}\n\n${failureNote}` : failureNote;
   await client.mutation(api.tasks.updateTask, {
@@ -2171,7 +2182,7 @@ async function runWorker(
     };
   }
 
-  const maxToProcess = asPositiveInt(requestedMax, 1, 1);
+  void requestedMax;
   const assignee = normalizeAssignee(requestedAssignee, "agent");
   const allTasks = await loadAllTasks(client);
 
@@ -2182,7 +2193,7 @@ async function runWorker(
     selected = backlog.find((task) => task.assigned_to === "agent");
   }
 
-  if (!selected || maxToProcess < 1) {
+  if (!selected) {
     return {
       ok: true,
       action: "worker" as const,
@@ -2500,8 +2511,8 @@ async function runStatus(client: ConvexHttpClient) {
   };
 
   for (const task of allTasks) {
-    byStatus[task.status] += 1;
-    byAssignee[task.assigned_to] += 1;
+    if (task.status in byStatus) byStatus[task.status as Status] += 1;
+    if (task.assigned_to in byAssignee) byAssignee[task.assigned_to as Assignee] += 1;
   }
 
   const pluginMetrics = await collectPluginMetrics();

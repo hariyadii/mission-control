@@ -87,7 +87,11 @@ async function runCronListAll() {
     timeout: 20000,
     maxBuffer: 1024 * 1024,
   });
-  return JSON.parse(stdout) as unknown;
+  try {
+    return JSON.parse(stdout) as unknown;
+  } catch {
+    throw new Error("cron list output was not valid JSON");
+  }
 }
 
 async function runCronMutation(command: "run" | "enable" | "disable", jobId: string) {
@@ -126,6 +130,16 @@ export async function POST(request: Request) {
     if (action === "setPolicy") {
       const current = await loadPolicy();
       const patch = (body.patch ?? {}) as Partial<Policy>;
+      if (patch.external?.xMode !== undefined && patch.external.xMode !== "browse" && patch.external.xMode !== "post") {
+        return NextResponse.json({ ok: false, error: "invalid xMode: must be 'browse' or 'post'" }, { status: 400 });
+      }
+      if (
+        patch.capitalLane?.mode !== undefined &&
+        patch.capitalLane.mode !== "paper" &&
+        patch.capitalLane.mode !== "live"
+      ) {
+        return NextResponse.json({ ok: false, error: "invalid capitalLane.mode: must be 'paper' or 'live'" }, { status: 400 });
+      }
       const next: Policy = {
         killSwitch: patch.killSwitch ?? current.killSwitch,
         allowHighRiskExternalActions:
@@ -177,7 +191,9 @@ export async function POST(request: Request) {
 
       const nextPolicy = { ...policy, killSwitch: enabled };
       await savePolicy(nextPolicy);
-      return NextResponse.json({ ok: true, policy: nextPolicy, touchedJobs: filtered.map((j) => j.id) });
+      const touchedJobs = filtered.map((j) => j.id);
+      const warning = touchedJobs.length === 0 ? "no_matching_cron_jobs_found" : undefined;
+      return NextResponse.json({ ok: true, policy: nextPolicy, touchedJobs, ...(warning ? { warning } : {}) });
     }
 
     return NextResponse.json({ ok: false, error: "unsupported action" }, { status: 400 });

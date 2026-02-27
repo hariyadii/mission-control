@@ -52,7 +52,7 @@ export const create = mutation({
 
     return await ctx.db.insert("tasks", {
       title: args.title,
-      description: args.description ?? "",
+      description: args.description,
       assigned_to: args.assigned_to,
       status: args.status ?? "backlog",
       created_at: timestamp,
