@@ -2203,10 +2203,19 @@ async function runWorker(
     };
   }
 
-  await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "in_progress" });
-
   const runStartedAt = Date.now();
   const timestamp = new Date(runStartedAt).toISOString();
+  // Set status + owner + lease atomically to close the race window between
+  // a bare updateStatus and a subsequent updateTask (Issue 1 fix).
+  await client.mutation(api.tasks.updateTask, {
+    id: selected._id,
+    status: "in_progress" as const,
+    owner: assignee,
+    lease_until: new Date(runStartedAt + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString(),
+    heartbeat_at: timestamp,
+    retry_count_run: 0,
+    validation_status: "pending",
+  });
   const plugin = EXECUTOR_PLUGINS.find((p) => p.match(selected));
   const pluginId = plugin?.id ?? "default_executor";
   let pluginResult: PluginResult;
@@ -3172,20 +3181,21 @@ async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
     return { ok: true, action: "claim" as const, task: null, message: "no_matching_backlog_task" };
   }
 
-  await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "in_progress" });
+  // Atomically transition to in_progress and set owner/lease in a single mutation
+  // to eliminate the race window where another claim could steal the task (Issue 1 fix).
+  const claimNowMs = Date.now();
+  const claimNowIso = new Date(claimNowMs).toISOString();
+  const claimLeaseUntilIso = new Date(claimNowMs + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
   const cleanedSelectedDesc = stripStaleLeaseMarkers(selected.description);
-  if (cleanedSelectedDesc !== (selected.description ?? "").trim()) {
-    await client.mutation(api.tasks.updateTask, { id: selected._id, description: cleanedSelectedDesc });
-  }
-  const nowIso = new Date().toISOString();
-  const leaseUntilIso = new Date(Date.now() + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
   await client.mutation(api.tasks.updateTask, {
     id: selected._id,
+    status: "in_progress" as const,
     owner: assignee,
-    lease_until: leaseUntilIso,
-    heartbeat_at: nowIso,
+    lease_until: claimLeaseUntilIso,
+    heartbeat_at: claimNowIso,
     retry_count_run: 0,
     validation_status: "pending",
+    ...(cleanedSelectedDesc !== (selected.description ?? "").trim() ? { description: cleanedSelectedDesc } : {}),
   });
   const requiredDraftPath = getDraftPath(String(selected._id), assignee);
 
@@ -4042,9 +4052,7 @@ async function runComplete(
       `blocked_until: ${blockedUntil}`,
       `unblock_signal: ${unblockSignal}`,
     ].join("\n");
-  }
-
-  else if (validation.status === "fail" && !reviewTask && !novaUiHandoff && sameReasonFailStreak >= 3) {
+  } else if (validation.status === "fail" && !reviewTask && !novaUiHandoff && sameReasonFailStreak >= 3) {
     finalStatus = "blocked";
     finalValidationStatus = "fail";
     blockedReason = "validation_contract_mismatch";
@@ -4261,18 +4269,20 @@ async function runHeartbeat(client: ConvexHttpClient, taskId: unknown, requested
     .join("\n")
     .trim();
   const newDesc = `${cleaned}${cleaned ? "\n\n" : ""}${marker}`;
-  const nextLeaseUntil = new Date(Date.now() + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
+  const heartbeatNowMs = Date.now();
+  const heartbeatLeaseUntil = new Date(heartbeatNowMs + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
+  const heartbeatNowIso = new Date(heartbeatNowMs).toISOString();
   await client.mutation(api.tasks.updateTask, {
     id: task._id,
     description: newDesc,
-    heartbeat_at: new Date().toISOString(),
-    lease_until: nextLeaseUntil,
+    heartbeat_at: heartbeatNowIso,
+    lease_until: heartbeatLeaseUntil,
   });
 
   return {
     ok: true,
     action: "heartbeat" as const,
-    lease_until: nextLeaseUntil,
+    lease_until: heartbeatLeaseUntil,
   };
 }
 

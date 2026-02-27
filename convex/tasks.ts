@@ -126,6 +126,7 @@ export const updateTask = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     assigned_to: v.optional(ASSIGNEE),
+    status: v.optional(STATUS),
 
     owner: v.optional(ASSIGNEE),
     lease_until: v.optional(v.string()),
