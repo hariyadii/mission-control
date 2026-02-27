@@ -3026,8 +3026,14 @@ async function runKicker(client: ConvexHttpClient) {
       })
       .sort((a, b) => b.score - a.score);
     const oldest = rankedBacklog[0]?.task ?? backlog[0];
+    // Ops lane is monitored by systemd, but backlog execution should be delegated to an active worker lane.
+    // Route ops-owned backlog work to alex to prevent queue deadlock when ops task worker is disabled.
     const preferredAssignee: Assignee =
-      oldest.assigned_to === "agent" ? "sam" : oldest.assigned_to === "me" ? "alex" : oldest.assigned_to;
+      oldest.assigned_to === "agent"
+        ? "sam"
+        : oldest.assigned_to === "me" || oldest.assigned_to === "ops"
+          ? "alex"
+          : oldest.assigned_to;
     const workerJobByAssignee: Record<Assignee, string> = {
       me: "alex-worker-30m",
       alex: "alex-worker-30m",
@@ -3049,16 +3055,6 @@ async function runKicker(client: ConvexHttpClient) {
         await runCommand(`openclaw cron run ${jobId} --timeout 300000`);
         workerWake.triggered = true;
         workerWake.result = "triggered";
-      } catch (error) {
-        workerWake.result = "failed";
-        workerWake.reason = error instanceof Error ? error.message : String(error);
-      }
-    } else if (preferredAssignee === "ops") {
-      try {
-        await runCommand("systemctl --user start openclaw-ops-worker.service");
-        workerWake.triggered = true;
-        workerWake.result = "triggered";
-        workerWake.reason = "systemd_ops_worker_started";
       } catch (error) {
         workerWake.result = "failed";
         workerWake.reason = error instanceof Error ? error.message : String(error);
