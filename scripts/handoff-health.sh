@@ -42,6 +42,7 @@ pass_cron=true
 pass_queue=true
 pass_throughput=true
 pass_ops=true
+pass_validation_loops=true
 cron_severity="none"
 
 reasons=()
@@ -84,8 +85,14 @@ if [[ "${ops_health_source:-none}" != "none" && "${ops_executor_healthy:-false}"
   reasons+=("ops_executor_unhealthy")
 fi
 
+# Block handoff if too many tasks are stuck in a validation loop (queue debt threshold = 3).
+if (( ${validation_loop_tasks:-0} >= 3 )); then
+  pass_validation_loops=false
+  reasons+=("validation_loop_tasks=${validation_loop_tasks}")
+fi
+
 go_no_go="GO"
-if [[ "$pass_readiness" != true || "$pass_cron" != true || "$pass_queue" != true || "$pass_throughput" != true || "$pass_ops" != true ]]; then
+if [[ "$pass_readiness" != true || "$pass_cron" != true || "$pass_queue" != true || "$pass_throughput" != true || "$pass_ops" != true || "$pass_validation_loops" != true ]]; then
   go_no_go="NO_GO"
 fi
 
@@ -94,11 +101,13 @@ label_cron="fail"
 label_queue="fail"
 label_throughput="fail"
 label_ops="fail"
+label_validation_loops="fail"
 if [[ "$pass_readiness" == true ]]; then label_readiness="pass"; fi
 if [[ "$pass_cron" == true ]]; then label_cron="pass"; fi
 if [[ "$pass_queue" == true ]]; then label_queue="pass"; fi
 if [[ "$pass_throughput" == true ]]; then label_throughput="pass"; fi
 if [[ "$pass_ops" == true ]]; then label_ops="pass"; fi
+if [[ "$pass_validation_loops" == true ]]; then label_validation_loops="pass"; fi
 
 verified_pct="0.0"
 if (( done_total > 0 )); then
@@ -113,7 +122,7 @@ echo "criterion_enabled_cron_errors_window=$label_cron enabled_errors=$enabled_e
 echo "criterion_queue_no_stuck_backlog=$label_queue suggested=$suggested backlog=$backlog in_progress=$in_progress blocked=$blocked oldest_backlog_age_minutes=$oldest_backlog_age"
 echo "criterion_throughput_integrity=$label_throughput done_total=$done_total done_verified_pass=$done_verified_pass done_with_fail_validation=$done_with_fail_validation done_unclassified=$done_unclassified verified_pass_pct=$verified_pct"
 echo "criterion_ops_executor=$label_ops ops_health_source=${ops_health_source:-none} ops_executor_healthy=${ops_executor_healthy:-false} ops_timers_healthy=${ops_timers_healthy:-false}"
-echo "validation_loop_tasks=${validation_loop_tasks:-0}"
+echo "criterion_validation_loops=$label_validation_loops validation_loop_tasks=${validation_loop_tasks:-0}"
 echo "active_cron_errors=${active_cron_errors:-0}"
 if (( ${#reasons[@]} > 0 )); then
   echo "reasons=$(IFS=';'; echo "${reasons[*]}")"

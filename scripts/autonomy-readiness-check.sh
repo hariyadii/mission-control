@@ -206,15 +206,19 @@ if [[ -f "$RECOVERY_LOG" ]]; then
   auto_recovered_jobs="$(grep -c 'auto_recovered=true' "$RECOVERY_LOG" || true)"
 fi
 
+# Write state atomically: build full JSON into a temp file, then rename into place.
+# This prevents a corrupt/truncated STATE_FILE if the process is interrupted mid-write,
+# which would reset all consecutive counters and re-fire deduplicated alerts.
+STATE_TMP="$(mktemp "${STATE_FILE}.XXXXXX")"
 printf '{"backlog_stall_since":%s,"alert_consecutive":%s,"updated_at":"%s"}\n' \
   "$backlog_stall_since" \
   "$alert_consecutive" \
-  "$(date -Iseconds)" > "$STATE_FILE.tmp"
-jq --argjson gh "$github_issue_consecutive" --argjson critical "$critical_alert_consecutive" \
+  "$(date -Iseconds)" \
+| jq --argjson gh "$github_issue_consecutive" --argjson critical "$critical_alert_consecutive" \
   --argjson opsIssue "$ops_issue_consecutive" \
   '. + {github_issue_consecutive: $gh, critical_alert_consecutive: $critical, ops_issue_consecutive: $opsIssue}' \
-  "$STATE_FILE.tmp" > "$STATE_FILE"
-rm -f "$STATE_FILE.tmp"
+  > "$STATE_TMP"
+mv -f "$STATE_TMP" "$STATE_FILE"
 
 echo "AUTONOMY_READINESS"
 echo "timestamp=$(date -Iseconds)"

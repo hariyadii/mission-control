@@ -95,10 +95,25 @@ while IFS= read -r job; do
   fi
 
   if is_rate_limit_like "$last_error"; then
-    pending=$((pending + 1))
-    printf '%s severity=warning job=%s id=%s action=wait_rate_limit_cooldown consecutive=%s\n' \
-      "$timestamp" "$name" "$id" "$consecutive" >> "$RECOVERY_LOG"
-    continue
+    # Skip (stay pending) only if the error is recent — within a 60-minute cooldown window.
+    # After the TTL, allow one retry so quota-recovered core jobs self-heal automatically
+    # instead of staying blocked until the next manual intervention.
+    rate_limit_ttl_ms=$(( 60 * 60 * 1000 ))
+    # Use the job's last-run timestamp as the rate-limit event time.
+    # If running_at > 0 use that; otherwise treat as immediate (skip safely).
+    rate_limit_elapsed_ms=0
+    if (( running_at > 0 )); then
+      rate_limit_elapsed_ms=$(( now_ms - running_at ))
+    fi
+    if (( running_at <= 0 || rate_limit_elapsed_ms < rate_limit_ttl_ms )); then
+      pending=$((pending + 1))
+      printf '%s severity=warning job=%s id=%s action=wait_rate_limit_cooldown consecutive=%s elapsed_ms=%s ttl_ms=%s\n' \
+        "$timestamp" "$name" "$id" "$consecutive" "$rate_limit_elapsed_ms" "$rate_limit_ttl_ms" >> "$RECOVERY_LOG"
+      continue
+    fi
+    # TTL expired — fall through to the standard retry path below.
+    printf '%s severity=warning job=%s id=%s action=rate_limit_cooldown_expired_retrying consecutive=%s elapsed_ms=%s\n' \
+      "$timestamp" "$name" "$id" "$consecutive" "$rate_limit_elapsed_ms" >> "$RECOVERY_LOG"
   fi
 
   if (( running_at > 0 && elapsed_ms > budget_ms )); then
