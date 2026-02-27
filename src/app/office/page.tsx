@@ -64,7 +64,7 @@ function DeskCard({ desk }: { desk: (typeof desks)[0] }) {
   };
 
   return (
-    <div className={`panel-glass p-4 border ${desk.accent.border}`}>
+    <div className={`panel-glass p-4 border ${desk.accent.border} min-w-0`}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <AgentBadge agent={desk.code} size="sm" />
@@ -77,7 +77,7 @@ function DeskCard({ desk }: { desk: (typeof desks)[0] }) {
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="w-full py-2 text-xs font-medium text-slate-400 border border-dashed border-white/10 rounded-lg hover:border-white/25 hover:text-slate-200 transition"
+          className="w-full py-3 text-xs font-medium text-slate-400 border border-dashed border-white/10 rounded-lg hover:border-white/25 hover:text-slate-200 transition min-h-[44px]"
         >
           + Create work order
         </button>

@@ -47,16 +47,16 @@ function AgentCard({ agent, inProgressCount }: { agent: typeof agents[0]; inProg
   const { border, glow, text, dot } = agent.accent;
   const isActive = inProgressCount !== null && inProgressCount > 0;
   return (
-    <div className={`panel-glass p-4 border ${border} shadow-lg ${glow}`}>
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-2.5">
+    <div className={`panel-glass p-4 border ${border} shadow-lg ${glow} min-w-0`}>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
           <span className={`w-2 h-2 rounded-full ${dot} ${isActive ? "animate-pulse" : "opacity-60"}`} />
           <span className={`text-sm font-bold ${text}`}>{agent.name}</span>
           <StatusBadge status="online" size="xs" />
         </div>
         <span className="text-[10px] text-slate-500">{agent.channel}</span>
       </div>
-      <p className="text-xs text-slate-400 mb-3 line-clamp-2 leading-relaxed">{agent.role}</p>
+      <p className="text-xs text-slate-400 mb-3 leading-relaxed">{agent.role}</p>
       <div className="flex items-center justify-between pt-2 border-t border-white/8">
         <span className="text-[10px] text-slate-600 font-mono">{agent.model}</span>
         <span className={`text-xs font-semibold ${isActive ? text : "text-slate-600"}`}>

@@ -117,12 +117,14 @@ export default function CalendarPage() {
                 type="button"
                 disabled={d === null}
                 onClick={() => d && setSelectedDay(sel ? null : d)}
+                aria-label={d ? `${MONTHS[month]} ${d}, ${year}${isToday(d) ? " (today)" : ""}${notesForDay(d).length > 0 ? `, ${notesForDay(d).length} note${notesForDay(d).length > 1 ? "s" : ""}` : ""}` : undefined}
+                aria-pressed={sel ? true : undefined}
                 className={[
-                  "relative min-h-8 rounded-lg text-xs font-medium transition-all duration-100 disabled:cursor-default",
+                  "relative min-h-[44px] rounded-lg text-xs font-medium transition-all duration-100 disabled:cursor-default",
                   d === null       ? "bg-transparent"                                                    :
                   todayC           ? "border border-indigo-400/50 bg-indigo-500/25 text-indigo-100"       :
                   sel              ? "border border-cyan-400/40 bg-cyan-500/15 text-cyan-100"             :
-                                     "border border-white/6 bg-slate-900/40 text-slate-300 hover:border-white/18 hover:bg-slate-800/50",
+                                     "border border-white/8 bg-slate-900/40 text-slate-300 hover:border-white/18 hover:bg-slate-800/50",
                 ].join(" ")}
               >
                 {d}

@@ -149,7 +149,7 @@ a { color: inherit; }
 
   /* ── Sections ── */
   .section-label {
-    @apply text-[10px] font-bold uppercase tracking-widest text-slate-500;
+    @apply text-[11px] font-bold uppercase tracking-widest text-slate-500;
   }
 
   /* ── Loading shimmer ── */
@@ -183,17 +183,23 @@ a { color: inherit; }
   .page-enter { animation: pageEnter 0.22s ease-out; }
 
   /* ── Focus states ── */
+  /* ring-offset-color matches actual page bg (#060b18) for crisp keyboard nav rings */
   a:focus-visible, button:focus-visible {
-    @apply outline-none ring-2 ring-indigo-400/55 ring-offset-1 ring-offset-slate-950;
+    outline: none;
+    box-shadow: 0 0 0 2px #060b18, 0 0 0 4px rgba(129, 140, 248, 0.75);
   }
   input:focus-visible, textarea:focus-visible, select:focus-visible {
-    @apply outline-none ring-2 ring-indigo-400/35 ring-offset-1 ring-offset-slate-950;
+    outline: none;
+    box-shadow: 0 0 0 1px #060b18, 0 0 0 3px rgba(129, 140, 248, 0.55);
   }
 
   /* ── Table defaults ── */
   table { @apply w-full border-collapse; }
-  th { @apply text-left text-[10px] uppercase tracking-wider text-slate-500 font-semibold pb-1; }
-  td { @apply border-t border-white/10 py-2.5 text-sm; }
+  th {
+    @apply text-left text-[11px] uppercase tracking-wider text-slate-500 font-semibold
+           pb-2 px-2 border-b border-white/10;
+  }
+  td { @apply border-t border-white/10 py-2.5 px-2 text-sm; }
 }
 
 /* ── Sidebar ── */
@@ -219,15 +225,23 @@ a { color: inherit; }
     min-width: 52px !important;
     padding-inline: 0.25rem !important;
   }
+  /* Ensure nav icon tap targets meet 44px minimum at xs breakpoints */
+  .sidebar .nav-link {
+    justify-content: center !important;
+    min-height: 44px !important;
+  }
   .app-shell  { overflow-x: hidden; }
   .content-wrap {
     padding: 0.625rem !important;
     overflow-x: hidden;
+    min-width: 0;
   }
   .panel-soft,
   .panel-glass { max-width: 100%; overflow-x: hidden; word-wrap: break-word; }
   .input-glass  { font-size: 16px !important; }
   .page-title   { font-size: 1.125rem !important; }
+  /* Clamp computed max-heights so they never go negative on short viewports */
+  .max-h-screen-clamped { max-height: max(200px, calc(100vh - 300px)); }
 }
 
 @media (max-width: 375px) {

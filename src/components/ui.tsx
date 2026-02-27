@@ -167,10 +167,10 @@ export function MetricCard({
   };
   return (
     <div className={`panel-soft p-2.5 ${accent ? accentBorder[accent] : ""}`}>
-      <p className="m-0 text-[9px] uppercase tracking-widest text-slate-500 font-medium">{label}</p>
+      <p className="m-0 text-[10px] uppercase tracking-widest text-slate-500 font-medium">{label}</p>
       <p className="m-0 mt-1 text-sm font-bold text-slate-100 tabular-nums">{value}</p>
       {trend && (
-        <p className={`m-0 text-[9px] font-semibold ${trendColor}`}>{trendIcon}</p>
+        <p className={`m-0 text-[10px] font-semibold ${trendColor}`}>{trendIcon}</p>
       )}
     </div>
   );
@@ -243,7 +243,8 @@ export function FilterInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className={`flex-1 min-w-[120px] input-glass text-xs ${className}`}
+      aria-label={placeholder}
+      className={`flex-1 min-w-0 w-auto input-glass text-xs ${className}`}
     />
   );
 }
@@ -253,16 +254,19 @@ export function FilterSelect({
   onChange,
   children,
   className = "",
+  ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   children: React.ReactNode;
   className?: string;
+  ariaLabel?: string;
 }) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      aria-label={ariaLabel}
       className={`input-glass text-xs w-auto ${className}`}
     >
       {children}
