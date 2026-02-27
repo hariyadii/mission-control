@@ -2949,7 +2949,8 @@ async function runKicker(client: ConvexHttpClient) {
           suggesterWake.failedJobs.push({ assignee, name: jobName, reason: "suggester_cron_job_not_found" });
         } else {
           try {
-            await runCommand(`openclaw cron run ${jobId} --timeout 240000`);
+            // Trigger asynchronously so kicker stays responsive and does not block on long cron execution.
+            await runCommand(`nohup openclaw cron run ${jobId} --timeout 240000 >/tmp/openclaw-cron-run.log 2>&1 &`);
             suggesterWake.triggeredJobs.push({ assignee, name: jobName, jobId });
           } catch (error) {
             suggesterWake.failedJobs.push({
@@ -3052,7 +3053,8 @@ async function runKicker(client: ConvexHttpClient) {
 
     if (jobId) {
       try {
-        await runCommand(`openclaw cron run ${jobId} --timeout 300000`);
+        // Trigger asynchronously so ops worker cycle does not hang waiting for job completion.
+        await runCommand(`nohup openclaw cron run ${jobId} --timeout 300000 >/tmp/openclaw-cron-run.log 2>&1 &`);
         workerWake.triggered = true;
         workerWake.result = "triggered";
       } catch (error) {
