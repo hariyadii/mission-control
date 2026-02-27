@@ -2205,11 +2205,9 @@ async function runWorker(
 
   const runStartedAt = Date.now();
   const timestamp = new Date(runStartedAt).toISOString();
-  // Set status + owner + lease atomically to close the race window between
-  // a bare updateStatus and a subsequent updateTask (Issue 1 fix).
+  await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "in_progress" });
   await client.mutation(api.tasks.updateTask, {
     id: selected._id,
-    status: "in_progress" as const,
     owner: assignee,
     lease_until: new Date(runStartedAt + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString(),
     heartbeat_at: timestamp,
@@ -3173,21 +3171,25 @@ async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
   } else {
     selected = backlog.find((t) => t.assigned_to === assignee && isChallengerTask(t));
     if (!selected) selected = backlog.find((t) => t.assigned_to === assignee);
+    // Ops backlog execution compatibility: when ops lane is delegated to alex,
+    // allow alex claim path to pick ops-owned backlog tasks.
+    if (!selected && assignee === "alex") {
+      selected = backlog.find((t) => t.assigned_to === "ops" && isChallengerTask(t));
+      if (!selected) selected = backlog.find((t) => t.assigned_to === "ops");
+    }
   }
 
   if (!selected) {
     return { ok: true, action: "claim" as const, task: null, message: "no_matching_backlog_task" };
   }
 
-  // Atomically transition to in_progress and set owner/lease in a single mutation
-  // to eliminate the race window where another claim could steal the task (Issue 1 fix).
   const claimNowMs = Date.now();
   const claimNowIso = new Date(claimNowMs).toISOString();
   const claimLeaseUntilIso = new Date(claimNowMs + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
   const cleanedSelectedDesc = stripStaleLeaseMarkers(selected.description);
+  await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "in_progress" });
   await client.mutation(api.tasks.updateTask, {
     id: selected._id,
-    status: "in_progress" as const,
     owner: assignee,
     lease_until: claimLeaseUntilIso,
     heartbeat_at: claimNowIso,
