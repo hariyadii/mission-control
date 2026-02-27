@@ -3,6 +3,20 @@ import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import {
+  FreshnessIndicator,
+  HealthDot,
+  StatusBadge,
+  AgentBadge,
+  IncidentBadge,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  FilterInput,
+  FilterSelect,
+} from "@/components/ui";
+
+// ── Types ──────────────────────────────────────────────────────────────────
 
 type Task = {
   _id: string;
@@ -59,214 +73,123 @@ type CapitalStatus = {
   }>;
 };
 
-function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return "-";
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-function formatAge(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const mins = Math.floor(diff / 60000);
-  const hours = Math.floor(mins / 60);
-  const days = Math.floor(hours / 24);
+function formatAge(ts: number): string {
+  const d = Date.now() - ts;
+  const m = Math.floor(d / 60_000);
+  const h = Math.floor(m / 60);
+  const days = Math.floor(h / 24);
   if (days > 0) return `${days}d`;
-  if (hours > 0) return `${hours}h`;
-  if (mins > 0) return `${mins}m`;
+  if (h > 0) return `${h}h`;
+  if (m > 0) return `${m}m`;
   return "now";
 }
 
-function formatTimestamp(ts: string | null | undefined): string {
-  if (!ts) return "-";
-  const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function formatTs(ts: string | null | undefined): string {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatRelativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const secs = Math.floor(diff / 1000);
-  const mins = Math.floor(secs / 60);
-  const hours = Math.floor(mins / 60);
-  if (hours > 0) return `${hours}h ago`;
-  if (mins > 0) return `${mins}m ago`;
-  return "just now";
-}
+// ── Sub-components ─────────────────────────────────────────────────────────
 
-// ===== COMPONENTS =====
-
-// Status Badge - GitactionBoard style
-function StatusBadge({ status, size = "sm" }: { status: string; size?: "xs" | "sm" | "md" }) {
-  const config: Record<string, { label: string; color: string; bg: string }> = {
-    suggested: { label: "SUGG", color: "text-fuchsia-300", bg: "bg-fuchsia-500/20" },
-    backlog: { label: "BACKLOG", color: "text-indigo-300", bg: "bg-indigo-500/20" },
-    in_progress: { label: "RUN", color: "text-cyan-300", bg: "bg-cyan-500/20" },
-    done: { label: "DONE", color: "text-emerald-300", bg: "bg-emerald-500/20" },
-    failed: { label: "FAIL", color: "text-rose-300", bg: "bg-rose-500/20" },
-  };
-  const c = config[status] || { label: status.slice(0, 6).toUpperCase(), color: "text-slate-300", bg: "bg-slate-500/20" };
-  const sizeClasses = size === "xs" ? "px-1.5 py-0.5 text-[9px]" : size === "md" ? "px-3 py-1 text-xs" : "px-2 py-0.5 text-[10px]";
-  return <span className={`inline-flex items-center rounded font-semibold tracking-wider ${c.color} ${c.bg} ${sizeClasses}`}>{c.label}</span>;
-}
-
-// Incident Badge
-function IncidentBadge({ severity }: { severity: string }) {
-  const config: Record<string, { label: string; color: string; bg: string }> = {
-    critical: { label: "CRIT", color: "text-rose-300", bg: "bg-rose-500/30" },
-    warning: { label: "WARN", color: "text-amber-300", bg: "bg-amber-500/30" },
-    normal: { label: "OK", color: "text-emerald-300", bg: "bg-emerald-500/30" },
-  };
-  const c = config[severity] || { label: "—", color: "text-slate-300", bg: "bg-slate-500/20" };
-  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${c.color} ${c.bg}`}>{c.label}</span>;
-}
-
-// Agent Badge
-function AgentBadge({ agent }: { agent: string }) {
-  const config: Record<string, { label: string; color: string; bg: string }> = {
-    sam: { label: "SAM", color: "text-cyan-300", bg: "bg-cyan-500/20" },
-    lyra: { label: "LYRA", color: "text-violet-300", bg: "bg-violet-500/20" },
-    alex: { label: "ALEX", color: "text-amber-300", bg: "bg-amber-500/20" },
-  };
-  const c = config[agent?.toLowerCase()] || { label: agent?.slice(0, 4).toUpperCase() || "—", color: "text-slate-300", bg: "bg-slate-500/20" };
-  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${c.color} ${c.bg}`}>{c.label}</span>;
-}
-
-// Health Indicator
-function HealthDot({ ok }: { ok: boolean }) {
-  return <span className={`inline-block w-2 h-2 rounded-full ${ok ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]"}`} />;
-}
-
-// Freshness Timestamp
-function FreshnessIndicator({ lastUpdate }: { lastUpdate: number }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 10000);
-    return () => clearInterval(id);
-  }, []);
-  const diff = now - lastUpdate;
-  const isStale = diff > 60000;
-  return (
-    <span className={`text-[10px] ${isStale ? "text-amber-400" : "text-emerald-400"}`}>
-      {isStale ? "⚠" : "●"} {formatRelativeTime(lastUpdate)}
-    </span>
-  );
-}
-
-// Compact Metric Card
-function MetricCard({ label, value, trend }: { label: string; value: string | number; trend?: "up" | "down" | "stable" }) {
-  const trendColors = { up: "text-emerald-400", down: "text-rose-400", stable: "text-slate-400" };
-  return (
-    <div className="panel-soft p-2">
-      <p className="m-0 text-[9px] uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="m-0 mt-0.5 text-sm font-semibold text-slate-100">{value}</p>
-      {trend && <p className={`m-0 text-[9px] ${trendColors[trend]}`}>{trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}</p>}
-    </div>
-  );
-}
-
-// Filter Bar Component
-function FilterBar({ 
-  agentFilter, setAgentFilter, 
-  statusFilter, setStatusFilter,
-  searchQuery, setSearchQuery 
+function TaskRow({
+  task,
+  showOwner = true,
+  showAge = true,
 }: {
-  agentFilter: string;
-  setAgentFilter: (v: string) => void;
-  statusFilter: string;
-  setStatusFilter: (v: string) => void;
-  searchQuery: string;
-  setSearchQuery: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 px-3 py-2 panel-glass">
-      <input
-        type="text"
-        placeholder="Search tasks..."
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        className="flex-1 min-w-[120px] bg-slate-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/50"
-      />
-      <select
-        value={agentFilter}
-        onChange={(e) => setAgentFilter(e.target.value)}
-        className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none"
-      >
-        <option value="all">All Agents</option>
-        <option value="sam">Sam</option>
-        <option value="lyra">Lyra</option>
-        <option value="alex">Alex</option>
-      </select>
-      <select
-        value={statusFilter}
-        onChange={(e) => setStatusFilter(e.target.value)}
-        className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none"
-      >
-        <option value="all">All Status</option>
-        <option value="suggested">Suggested</option>
-        <option value="backlog">Backlog</option>
-        <option value="in_progress">Running</option>
-        <option value="done">Done</option>
-      </select>
-      <button
-        onClick={() => { setAgentFilter("all"); setStatusFilter("all"); setSearchQuery(""); }}
-        className="px-2 py-1 text-[10px] text-slate-400 hover:text-slate-200 transition"
-      >
-        Clear
-      </button>
-    </div>
-  );
-}
-
-// Task Row - Compact with all info
-function TaskRow({ task, showOwner = true, showAge = true, showHint = false }: { 
-  task: Task; 
+  task: Task;
   showOwner?: boolean;
   showAge?: boolean;
-  showHint?: boolean;
 }) {
   const age = useMemo(() => formatAge(task._creationTime), [task._creationTime]);
-  const isStale = Date.now() - task._creationTime > 3600000; // > 1 hour
-  
-  const hints: Record<string, string> = {
-    suggested: "needs review",
-    backlog: "ready to claim",
-    in_progress: "executing...",
-    done: "artifact saved",
-  };
-  
+  const isStale = Date.now() - task._creationTime > 3_600_000 && task.status !== "done";
   return (
-    <div className={`flex items-center gap-2 px-2 py-1.5 text-xs border-b border-white/5 last:border-0 ${isStale && task.status !== "done" ? "bg-amber-500/5" : ""}`}>
-      {showAge && <span className={`text-[10px] w-6 ${isStale ? "text-amber-400" : "text-slate-500"}`}>{age}</span>}
-      <span className="flex-1 truncate text-slate-200" title={task.title}>{task.title}</span>
-      {showOwner && task.assigned_to && <AgentBadge agent={task.assigned_to} />}
+    <div
+      className={`flex items-center gap-2 px-2 py-1.5 text-xs border-b border-white/5 last:border-0 ${
+        isStale ? "bg-amber-500/5" : ""
+      }`}
+    >
+      {showAge && (
+        <span className={`w-6 text-[10px] tabular-nums shrink-0 ${isStale ? "text-amber-400" : "text-slate-500"}`}>
+          {age}
+        </span>
+      )}
+      <span className="flex-1 truncate text-slate-200" title={task.title}>
+        {task.title}
+      </span>
+      {showOwner && task.assigned_to && <AgentBadge agent={task.assigned_to} size="xs" />}
       <StatusBadge status={task.status} size="xs" />
-      {showHint && <span className="text-[9px] text-slate-500 hidden md:inline">{hints[task.status] || ""}</span>}
     </div>
   );
 }
 
-// Incident Row
-function IncidentRow({ incident }: { incident: { id: string; severity: string; message: string; timestamp: string; action?: string } }) {
+function IncidentRow({
+  incident,
+}: {
+  incident: { id: string; severity: string; message: string; timestamp: string; action?: string };
+}) {
   return (
-    <div className="flex items-start gap-2 px-2 py-1.5 text-xs border-b border-white/5">
+    <div className="flex items-start gap-2 px-2 py-1.5 text-xs border-b border-white/5 last:border-0">
       <IncidentBadge severity={incident.severity} />
       <div className="flex-1 min-w-0">
-        <p className="text-slate-200 truncate" title={incident.message}>{incident.message}</p>
-        {incident.action && <p className="text-[9px] text-cyan-400 mt-0.5">→ {incident.action}</p>}
+        <p className="text-slate-200 truncate leading-snug" title={incident.message}>
+          {incident.message}
+        </p>
+        {incident.action && (
+          <p className="text-[9px] text-cyan-400 mt-0.5">→ {incident.action}</p>
+        )}
       </div>
-      <span className="text-[9px] text-slate-500 whitespace-nowrap">{formatTimestamp(incident.timestamp)}</span>
+      <span className="text-[9px] text-slate-500 whitespace-nowrap shrink-0">{formatTs(incident.timestamp)}</span>
     </div>
   );
 }
 
-// ===== MAIN PAGE =====
+// Queue section with collapsible list
+function QueueSection({
+  label,
+  dotColor,
+  badgeColor,
+  tasks,
+  maxH = "120px",
+}: {
+  label: string;
+  dotColor: string;
+  badgeColor: string;
+  tasks: Task[];
+  maxH?: string;
+}) {
+  return (
+    <section className="panel-glass p-2.5">
+      <div className="flex items-center justify-between mb-2 px-0.5">
+        <div className="flex items-center gap-2">
+          <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">{label}</span>
+        </div>
+        <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${badgeColor}`}>
+          {tasks.length}
+        </span>
+      </div>
+      <div className={`space-y-0 overflow-y-auto`} style={{ maxHeight: maxH }}>
+        {tasks.length > 0 ? (
+          tasks.map((t) => <TaskRow key={t._id} task={t} showAge />)
+        ) : (
+          <p className="text-[10px] text-slate-600 text-center py-3">Empty</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const tasks = useQuery(api.tasks.list);
   const [autonomy, setAutonomy] = useState<AutonomyStatus | null>(null);
   const [capital, setCapital] = useState<CapitalStatus | null>(null);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
-  
-  // Filter state
+
+  // Filters
   const [agentFilter, setAgentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -276,25 +199,33 @@ export default function Home() {
     const load = async () => {
       try {
         const [aRes, cRes] = await Promise.all([
-          fetch("/api/autonomy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "status" }) }),
-          fetch("/api/capital", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "status" }) }),
+          fetch("/api/autonomy", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "status" }),
+          }),
+          fetch("/api/capital", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "status" }),
+          }),
         ]);
         if (!cancelled) {
           if (aRes.ok) setAutonomy((await aRes.json()) as AutonomyStatus);
           if (cRes.ok) setCapital((await cRes.json()) as CapitalStatus);
           setLastUpdate(Date.now());
         }
-      } catch { /* ignore */ }
+      } catch { /* silent */ }
     };
     void load();
-    const id = setInterval(load, 15000);
+    const id = setInterval(load, 15_000);
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  // Filter tasks
+  // Filtered tasks
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
-    return tasks.filter((t: Task) => {
+    return (tasks as Task[]).filter((t) => {
       if (agentFilter !== "all" && t.assigned_to?.toLowerCase() !== agentFilter) return false;
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -302,253 +233,300 @@ export default function Home() {
     });
   }, [tasks, agentFilter, statusFilter, searchQuery]);
 
-  const runningTasks = filteredTasks.filter((t: Task) => t.status === "in_progress");
-  const backlogTasks = filteredTasks.filter((t: Task) => t.status === "backlog");
-  const suggestedTasks = filteredTasks.filter((t: Task) => t.status === "suggested");
-  const doneTasks = filteredTasks
-    .filter((t: Task) => t.status === "done")
-    .sort((a: Task, b: Task) => b._creationTime - a._creationTime)
-    .slice(0, 8);
+  const running   = filteredTasks.filter((t) => t.status === "in_progress");
+  const backlog   = filteredTasks.filter((t) => t.status === "backlog");
+  const suggested = filteredTasks.filter((t) => t.status === "suggested");
+  const done      = filteredTasks
+    .filter((t) => t.status === "done")
+    .sort((a, b) => b._creationTime - a._creationTime)
+    .slice(0, 10);
 
-  // Combined incidents from both systems
-  const allIncidents = useMemo(() => {
-    const inc: Array<{ id: string; source: string; severity: string; message: string; timestamp: string; action?: string }> = [];
-    autonomy?.incidents?.forEach((i, idx) => inc.push({ ...i, id: i.id ?? `autonomy-${idx}`, source: "autonomy" }));
-    capital?.incidents?.forEach((i, idx) => inc.push({ ...i, id: i.id ?? `capital-${idx}`, source: "capital" }));
-    return inc.sort((a, b) => {
-      const sevOrder = { critical: 0, warning: 1, normal: 2 };
-      return (sevOrder[a.severity as keyof typeof sevOrder] ?? 2) - (sevOrder[b.severity as keyof typeof sevOrder] ?? 2);
-    }).slice(0, 5);
-  }, [autonomy?.incidents, capital?.incidents]);
-
-  const criticalCount = allIncidents.filter(i => i.severity === "critical").length;
-  const warningCount = allIncidents.filter(i => i.severity === "warning").length;
-
-  // Pipeline counts (from filtered)
-  const pipelineCounts = {
-    suggested: filteredTasks.filter((t: Task) => t.status === "suggested").length,
-    backlog: filteredTasks.filter((t: Task) => t.status === "backlog").length,
-    running: filteredTasks.filter((t: Task) => t.status === "in_progress").length,
-    done: filteredTasks.filter((t: Task) => t.status === "done").length,
+  const pCounts = {
+    suggested: filteredTasks.filter((t) => t.status === "suggested").length,
+    backlog:   filteredTasks.filter((t) => t.status === "backlog").length,
+    running:   filteredTasks.filter((t) => t.status === "in_progress").length,
+    done:      filteredTasks.filter((t) => t.status === "done").length,
   };
 
-  return (
-    <div className="space-y-3">
-      {/* HEADER */}
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-100">Mission Control</h1>
-          <p className="text-xs text-slate-400">Enterprise ops dashboard</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <FreshnessIndicator lastUpdate={lastUpdate} />
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500">SYS</span>
-            <HealthDot ok={autonomy?.ok ?? false} />
-          </div>
-        </div>
-      </header>
+  // Incidents
+  const allIncidents = useMemo(() => {
+    const inc: Array<{
+      id: string;
+      source: string;
+      severity: string;
+      message: string;
+      timestamp: string;
+      action?: string;
+    }> = [];
+    autonomy?.incidents?.forEach((i, idx) =>
+      inc.push({ ...i, id: i.id ?? `a-${idx}`, source: "autonomy" })
+    );
+    capital?.incidents?.forEach((i, idx) =>
+      inc.push({ ...i, id: i.id ?? `c-${idx}`, source: "capital" })
+    );
+    const order: Record<string, number> = { critical: 0, warning: 1, normal: 2 };
+    return inc.sort((a, b) => (order[a.severity] ?? 2) - (order[b.severity] ?? 2)).slice(0, 6);
+  }, [autonomy?.incidents, capital?.incidents]);
 
-      {/* FILTER BAR */}
-      <FilterBar
-        agentFilter={agentFilter}
-        setAgentFilter={setAgentFilter}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
+  const critCount = allIncidents.filter((i) => i.severity === "critical").length;
+  const warnCount = allIncidents.filter((i) => i.severity === "warning").length;
+
+  // Capital trend
+  const capTrend = capital?.portfolio
+    ? capital.portfolio.totalPnl >= 0
+      ? "up"
+      : "down"
+    : undefined;
+
+  return (
+    <div className="space-y-4 page-enter">
+
+      {/* ── Header ── */}
+      <PageHeader
+        title="Mission Control"
+        subtitle="Autonomous AI operations dashboard"
+        right={
+          <>
+            <FreshnessIndicator lastUpdate={lastUpdate} />
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+              SYS <HealthDot ok={autonomy?.ok ?? false} />
+            </div>
+          </>
+        }
       />
 
-      {/* MAIN 3-COLUMN GRID */}
+      {/* ── Filter Bar ── */}
+      <div className="flex flex-wrap items-center gap-2 p-2.5 panel-glass">
+        <FilterInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search tasks..."
+          className="text-xs"
+        />
+        <FilterSelect value={agentFilter} onChange={setAgentFilter} className="py-1.5">
+          <option value="all">All agents</option>
+          <option value="sam">Sam</option>
+          <option value="lyra">Lyra</option>
+          <option value="alex">Alex</option>
+          <option value="nova">Nova</option>
+        </FilterSelect>
+        <FilterSelect value={statusFilter} onChange={setStatusFilter} className="py-1.5">
+          <option value="all">All status</option>
+          <option value="suggested">Suggested</option>
+          <option value="backlog">Backlog</option>
+          <option value="in_progress">Running</option>
+          <option value="done">Done</option>
+        </FilterSelect>
+        {(agentFilter !== "all" || statusFilter !== "all" || searchQuery) && (
+          <button
+            onClick={() => { setAgentFilter("all"); setStatusFilter("all"); setSearchQuery(""); }}
+            className="btn-ghost text-[10px]"
+          >
+            ✕ Clear
+          </button>
+        )}
+        <span className="ml-auto text-[10px] text-slate-500 tabular-nums">
+          {filteredTasks.length} tasks
+        </span>
+      </div>
+
+      {/* ── 3-Column Grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
-        {/* LEFT: Pipeline + Agents */}
+        {/* LEFT — Pipeline + Agents */}
         <div className="space-y-3">
-          {/* Pipeline Compact */}
-          <section className="panel-glass p-3">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Pipeline</h2>
-              <span className="text-[9px] text-slate-500">{filteredTasks.length} tasks</span>
-            </div>
+
+          {/* Pipeline Counter */}
+          <SectionCard title="Pipeline">
             <div className="grid grid-cols-4 gap-1.5">
               {[
-                { key: "suggested", label: "Sugg", color: "text-fuchsia-300", bg: "bg-fuchsia-500/20", count: pipelineCounts.suggested },
-                { key: "backlog", label: "Backlog", color: "text-indigo-300", bg: "bg-indigo-500/20", count: pipelineCounts.backlog },
-                { key: "running", label: "Run", color: "text-cyan-300", bg: "bg-cyan-500/20", count: pipelineCounts.running },
-                { key: "done", label: "Done", color: "text-emerald-300", bg: "bg-emerald-500/20", count: pipelineCounts.done },
-              ].map((step) => (
-                <div key={step.key} className={`text-center p-1.5 rounded-lg bg-gradient-to-b ${step.bg}`}>
-                  <p className={`text-[9px] uppercase tracking-wider ${step.color}`}>{step.label}</p>
-                  <p className="text-lg font-bold text-slate-100">{step.count}</p>
-                </div>
+                { key: "suggested", label: "Sugg",   color: "text-fuchsia-300", bg: "bg-fuchsia-500/15 border border-fuchsia-500/25", n: pCounts.suggested },
+                { key: "backlog",   label: "Queue",  color: "text-indigo-300",  bg: "bg-indigo-500/15 border border-indigo-500/25",   n: pCounts.backlog   },
+                { key: "running",   label: "Run",    color: "text-cyan-300",    bg: "bg-cyan-500/15 border border-cyan-500/25",        n: pCounts.running   },
+                { key: "done",      label: "Done",   color: "text-emerald-300", bg: "bg-emerald-500/15 border border-emerald-500/25",  n: pCounts.done      },
+              ].map((s) => (
+                <Link
+                  key={s.key}
+                  href={`/tasks?status=${s.key === "running" ? "in_progress" : s.key}`}
+                  className={`text-center p-2 rounded-lg ${s.bg} hover:brightness-110 transition-all duration-150`}
+                >
+                  <p className={`text-[9px] uppercase tracking-widest font-semibold ${s.color}`}>{s.label}</p>
+                  <p className="text-xl font-bold text-slate-100 tabular-nums leading-tight mt-0.5">{s.n}</p>
+                </Link>
               ))}
             </div>
-          </section>
+          </SectionCard>
 
-          {/* Agent Metrics */}
+          {/* Agent Panels */}
           <div className="grid grid-cols-2 gap-2">
-            <section className="panel-glass p-2">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <AgentBadge agent="sam" />
-                <span className="text-[9px] text-slate-500">General Ops</span>
-                <HealthDot ok={true} />
+            {/* Sam */}
+            <section className="panel-glass p-2.5">
+              <div className="flex items-center gap-1.5 mb-2">
+                <AgentBadge agent="sam" size="xs" />
+                <span className="text-[9px] text-slate-500">Ops</span>
+                <HealthDot ok />
               </div>
               <div className="grid grid-cols-2 gap-1">
-                <MetricCard label="Assigned" value={autonomy?.byAssignee?.sam ?? "—"} />
-                <MetricCard label="Runs" value={autonomy?.pluginMetrics?.totalExecutions ?? "—"} />
+                <MetricCard label="Tasks" value={autonomy?.byAssignee?.sam ?? "—"} />
+                <MetricCard label="Runs"  value={autonomy?.pluginMetrics?.totalExecutions ?? "—"} />
               </div>
             </section>
-            <section className="panel-glass p-2">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <AgentBadge agent="lyra" />
+            {/* Lyra */}
+            <section className="panel-glass p-2.5">
+              <div className="flex items-center gap-1.5 mb-2">
+                <AgentBadge agent="lyra" size="xs" />
                 <span className="text-[9px] text-slate-500">Capital</span>
                 <HealthDot ok={capital?.portfolio?.status === "ok"} />
               </div>
               <div className="grid grid-cols-2 gap-1">
-                <MetricCard 
-                  label="Equity" 
-                  value={capital?.portfolio ? `$${(capital.portfolio.totalEquity/1000).toFixed(0)}k` : "—"} 
-                  trend={capital?.portfolio?.totalPnl && capital.portfolio.totalPnl >= 0 ? "up" : "down"}
+                <MetricCard
+                  label="Equity"
+                  value={capital?.portfolio ? `$${(capital.portfolio.totalEquity / 1000).toFixed(0)}k` : "—"}
+                  trend={capTrend}
+                  accent={capital?.portfolio?.totalPnl && capital.portfolio.totalPnl >= 0 ? "emerald" : "rose"}
                 />
-                <MetricCard 
-                  label="PnL" 
-                  value={capital?.portfolio ? `${capital.portfolio.totalPnlPct >= 0 ? "+" : ""}${capital.portfolio.totalPnlPct.toFixed(0)}%` : "—"} 
+                <MetricCard
+                  label="PnL"
+                  value={
+                    capital?.portfolio
+                      ? `${capital.portfolio.totalPnlPct >= 0 ? "+" : ""}${capital.portfolio.totalPnlPct.toFixed(0)}%`
+                      : "—"
+                  }
                 />
               </div>
             </section>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-2">
-            <MetricCard label="Total" value={autonomy?.total ?? "—"} />
-            <MetricCard label="Plugins" value={autonomy?.pluginMetrics?.byPlugin?.length ?? "—"} />
-            <MetricCard label="Positions" value={capital?.portfolio?.positions?.length ?? "—"} />
+          <div className="grid grid-cols-3 gap-1.5">
+            <MetricCard label="Total"     value={autonomy?.total                             ?? "—"} />
+            <MetricCard label="Plugins"   value={autonomy?.pluginMetrics?.byPlugin?.length   ?? "—"} />
+            <MetricCard label="Positions" value={capital?.portfolio?.positions?.length        ?? "—"} />
           </div>
         </div>
 
-        {/* CENTER: Queues */}
+        {/* CENTER — Live Queues */}
         <div className="space-y-3">
-          {/* Running Queue */}
-          <section className="panel-glass p-2">
-            <div className="flex items-center justify-between mb-1.5 px-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                <h2 className="text-xs font-semibold text-slate-200">Running</h2>
-              </div>
-              <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-[9px] text-cyan-300 font-semibold">{runningTasks.length}</span>
-            </div>
-            <div className="space-y-0.5 max-h-[120px] overflow-y-auto">
-              {runningTasks.length > 0 ? runningTasks.map((t: Task) => (
-                <TaskRow key={t._id} task={t} showAge showHint />
-              )) : (
-                <p className="text-[10px] text-slate-500 text-center py-3">No running tasks</p>
-              )}
-            </div>
-          </section>
-
-          {/* Backlog Queue */}
-          <section className="panel-glass p-2">
-            <div className="flex items-center justify-between mb-1.5 px-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-                <h2 className="text-xs font-semibold text-slate-200">Backlog</h2>
-              </div>
-              <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-[9px] text-indigo-300 font-semibold">{backlogTasks.length}</span>
-            </div>
-            <div className="space-y-0.5 max-h-[100px] overflow-y-auto">
-              {backlogTasks.slice(0, 5).map((t: Task) => (
-                <TaskRow key={t._id} task={t} showAge showHint />
-              ))}
-              {backlogTasks.length === 0 && (
-                <p className="text-[10px] text-slate-500 text-center py-3">No backlog</p>
-              )}
-            </div>
-          </section>
-
-          {/* Suggested Queue */}
-          <section className="panel-glass p-2">
-            <div className="flex items-center justify-between mb-1.5 px-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-fuchsia-400"></span>
-                <h2 className="text-xs font-semibold text-slate-200">Suggested</h2>
-              </div>
-              <span className="px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-[9px] text-fuchsia-300 font-semibold">{suggestedTasks.length}</span>
-            </div>
-            <div className="space-y-0.5 max-h-[80px] overflow-y-auto">
-              {suggestedTasks.slice(0, 4).map((t: Task) => (
-                <TaskRow key={t._id} task={t} showAge />
-              ))}
-              {suggestedTasks.length === 0 && (
-                <p className="text-[10px] text-slate-500 text-center py-2">No suggestions</p>
-              )}
-            </div>
-          </section>
+          <QueueSection
+            label="Running"
+            dotColor="bg-cyan-400 animate-pulse"
+            badgeColor="text-cyan-300 bg-cyan-500/20"
+            tasks={running}
+            maxH="140px"
+          />
+          <QueueSection
+            label="Backlog"
+            dotColor="bg-indigo-400"
+            badgeColor="text-indigo-300 bg-indigo-500/20"
+            tasks={backlog}
+            maxH="110px"
+          />
+          <QueueSection
+            label="Suggested"
+            dotColor="bg-fuchsia-400"
+            badgeColor="text-fuchsia-300 bg-fuchsia-500/20"
+            tasks={suggested.slice(0, 5)}
+            maxH="90px"
+          />
         </div>
 
-        {/* RIGHT: Incidents + Done */}
+        {/* RIGHT — Incidents + Done + Plugins */}
         <div className="space-y-3">
-          {/* Incident Rail */}
-          <section className="panel-glass p-2">
-            <div className="flex items-center justify-between mb-1.5 px-1">
-              <h2 className="text-xs font-semibold text-slate-200">Incidents</h2>
-              <div className="flex gap-1">
-                {criticalCount > 0 && <span className="px-1 py-0.5 rounded bg-rose-500/30 text-[9px] text-rose-300 font-bold">{criticalCount}C</span>}
-                {warningCount > 0 && <span className="px-1 py-0.5 rounded bg-amber-500/30 text-[9px] text-amber-300 font-bold">{warningCount}W</span>}
-                {criticalCount === 0 && warningCount === 0 && <span className="text-[9px] text-emerald-400">All clear</span>}
+          {/* Incidents */}
+          <section className="panel-glass p-2.5">
+            <div className="flex items-center justify-between mb-2 px-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Incidents</span>
+              <div className="flex items-center gap-1">
+                {critCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-md bg-rose-500/25 text-[9px] text-rose-300 font-bold border border-rose-500/30">
+                    {critCount}C
+                  </span>
+                )}
+                {warnCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-md bg-amber-500/25 text-[9px] text-amber-300 font-bold border border-amber-500/30">
+                    {warnCount}W
+                  </span>
+                )}
+                {critCount === 0 && warnCount === 0 && (
+                  <span className="text-[9px] text-emerald-400 font-medium">All clear</span>
+                )}
               </div>
             </div>
-            <div className="space-y-0.5 max-h-[100px] overflow-y-auto">
-              {allIncidents.length > 0 ? allIncidents.map((inc, i) => (
-                <IncidentRow key={i} incident={inc} />
-              )) : (
-                <p className="text-[10px] text-slate-500 text-center py-3">No incidents</p>
+            <div className="max-h-[110px] overflow-y-auto">
+              {allIncidents.length > 0 ? (
+                allIncidents.map((inc, i) => <IncidentRow key={i} incident={inc} />)
+              ) : (
+                <p className="text-[10px] text-slate-600 text-center py-4">No incidents</p>
               )}
             </div>
           </section>
 
-          {/* Recently Done */}
-          <section className="panel-glass p-2">
-            <div className="flex items-center justify-between mb-1.5 px-1">
-              <h2 className="text-xs font-semibold text-slate-200">Done</h2>
-              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-[9px] text-emerald-300 font-semibold">{doneTasks.length}</span>
+          {/* Done */}
+          <section className="panel-glass p-2.5">
+            <div className="flex items-center justify-between mb-2 px-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Completed</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-[9px] text-emerald-300 font-bold border border-emerald-500/30">
+                {done.length}
+              </span>
             </div>
-            <div className="space-y-0.5 max-h-[180px] overflow-y-auto">
-              {doneTasks.length > 0 ? doneTasks.map((t: Task) => (
-                <TaskRow key={t._id} task={t} showOwner showAge={false} />
-              )) : (
-                <p className="text-[10px] text-slate-500 text-center py-3">No completed tasks</p>
+            <div className="max-h-[200px] overflow-y-auto">
+              {done.length > 0 ? (
+                done.map((t) => <TaskRow key={t._id} task={t} showOwner showAge={false} />)
+              ) : (
+                <p className="text-[10px] text-slate-600 text-center py-4">Nothing yet</p>
               )}
             </div>
           </section>
 
           {/* Plugin Sparklines */}
-          <section className="panel-glass p-2">
-            <h2 className="text-xs font-semibold text-slate-300 mb-1.5">Plugins</h2>
-            <div className="space-y-1">
-              {autonomy?.pluginMetrics?.byPlugin?.slice(0, 4).map((item) => (
-                <div key={item.plugin} className="flex items-center gap-2">
-                  <span className="text-[9px] text-slate-400 truncate max-w-[80px]" title={item.plugin}>{item.plugin.split("/").pop()}</span>
-                  <div className="flex-1 flex gap-px h-1.5">
-                    {item.sparkline.slice(0, 12).map((v, i) => (
-                      <div key={i} className={`flex-1 rounded-sm ${v > 0 ? "bg-emerald-500/70" : "bg-slate-700"}`} style={{ height: `${Math.min(100, (v / Math.max(...item.sparkline.filter(x => x > 0), 1)) * 100)}%` }} />
-                    ))}
-                  </div>
-                  <span className="text-[9px] text-slate-500">{item.success}/{item.runs}</span>
-                </div>
-              ))}
-              {(!autonomy?.pluginMetrics?.byPlugin || autonomy.pluginMetrics.byPlugin.length === 0) && (
-                <p className="text-[10px] text-slate-500 text-center py-2">No plugin data</p>
-              )}
-            </div>
-          </section>
+          {autonomy?.pluginMetrics?.byPlugin && autonomy.pluginMetrics.byPlugin.length > 0 && (
+            <section className="panel-glass p-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Plugins</p>
+              <div className="space-y-1.5">
+                {autonomy.pluginMetrics.byPlugin.slice(0, 5).map((item) => {
+                  const maxVal = Math.max(...item.sparkline.filter((x) => x > 0), 1);
+                  return (
+                    <div key={item.plugin} className="flex items-center gap-2">
+                      <span
+                        className="text-[9px] text-slate-400 truncate w-[80px] shrink-0"
+                        title={item.plugin}
+                      >
+                        {item.plugin.split("/").pop()}
+                      </span>
+                      <div className="flex-1 flex items-end gap-px h-3">
+                        {item.sparkline.slice(0, 14).map((v, i) => (
+                          <div
+                            key={i}
+                            className={`flex-1 rounded-sm ${v > 0 ? "bg-emerald-500/60" : "bg-slate-800"}`}
+                            style={{ height: `${v > 0 ? Math.max(20, (v / maxVal) * 100) : 20}%` }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[9px] text-slate-500 tabular-nums w-10 text-right shrink-0">
+                        {item.success}/{item.runs}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
         </div>
       </div>
 
-      {/* MISSION FOOTER */}
-      <section className="panel-glass bg-gradient-to-r from-violet-500/10 to-cyan-500/10 p-2">
-        <p className="text-[9px] uppercase tracking-widest text-slate-500">Mission</p>
-        <p className="text-xs text-slate-300 mt-0.5">Autonomous AI ops — reduce manual work, ship value 24/7, build compounding systems.</p>
-      </section>
+      {/* ── Mission Footer ── */}
+      <div className="panel-glass bg-gradient-to-r from-indigo-500/8 to-cyan-500/8 px-4 py-3 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-slate-600 font-semibold">Mission</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Autonomous AI ops — reduce manual work, ship value 24/7, build compounding systems.
+          </p>
+        </div>
+        <Link href="/control" className="btn-ghost text-[10px] shrink-0">
+          Control →
+        </Link>
+      </div>
+
     </div>
   );
 }
