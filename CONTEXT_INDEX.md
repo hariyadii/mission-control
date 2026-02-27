@@ -5,6 +5,35 @@ Use this file as the single entry point for any external IDE/agent to load proje
 ## Primary Workspace
 - `/home/ubuntu/mission-control`
 
+## GitHub Source Of Truth
+- Repo: `https://github.com/hariyadii/mission-control`
+- Default branch: `master`
+- Active working pattern:
+  - Long-lived stable branch: `master`
+  - Feature branches: `feat/*`
+  - Sonnet/cloud branches usually arrive as `origin/feat/*` and should be reviewed before merge/cherry-pick
+
+## Git Sync Commands
+```bash
+cd /home/ubuntu/mission-control
+git fetch origin --prune
+git checkout master
+git pull --ff-only origin master
+```
+
+## PR / Branch Intake
+```bash
+# inspect incoming branch
+git log --oneline --max-count=20 origin/<branch>
+
+# merge (preferred when clean)
+git checkout master
+git merge --no-ff origin/<branch>
+
+# or cherry-pick specific commits
+git cherry-pick <sha1> <sha2> ...
+```
+
 ## Load Order (Recommended)
 1. `/home/ubuntu/mission-control/CONTEXT_INDEX.md`
 2. `/home/ubuntu/mission-control/AGENTS.md` (if present)
@@ -48,4 +77,3 @@ curl -sS -X POST http://127.0.0.1:3001/api/autonomy \
 - Every feature/config/workflow change must be written to `/home/ubuntu/mission-control/changelog/`
 - Filename format: `YYYY-MM-DD-<featurechange>.md`
 - Reuse same file per day+feature (append entries)
-
