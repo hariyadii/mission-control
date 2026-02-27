@@ -4227,8 +4227,13 @@ async function runComplete(
     title: task.title,
   }).catch(() => undefined);
 
-  const retryTotal = validation.status === "pass" ? 0 : 1;
-  const nextBackoff = validation.status === "pass" ? 0 : RETRY_BACKOFF_MINUTES[0];
+  const retryTotal = validation.status === "pass" ? 0 : (task.retry_count_total ?? 0) + 1;
+  // Use streak-indexed backoff so repeated failures back off progressively.
+  // Rate-limit blocks get the longest backoff slot immediately (quota windows are hours, not minutes).
+  const backoffIndex = finalStatus === "blocked" && blockedReason === "rate_limit_constraint"
+    ? RETRY_BACKOFF_MINUTES.length - 1
+    : Math.min(Math.max(0, sameReasonFailStreak - 1), RETRY_BACKOFF_MINUTES.length - 1);
+  const nextBackoff = validation.status === "pass" ? 0 : RETRY_BACKOFF_MINUTES[backoffIndex];
 
   return {
     ok: true,
@@ -4296,12 +4301,18 @@ async function runNormalizeStates(client: ConvexHttpClient, dryRun: unknown) {
   };
 }
 
+// Rate-limit blocks auto-expire after this many minutes (matches longest RETRY_BACKOFF_MINUTES slot).
+// Quota windows typically reset within 1-4 hours; 240 min (= RETRY_BACKOFF_MINUTES[2]) is safe.
+const RATE_LIMIT_AUTO_UNBLOCK_MINUTES = RETRY_BACKOFF_MINUTES[RETRY_BACKOFF_MINUTES.length - 1]; // 240
+
 async function runValidationCleanup(client: ConvexHttpClient, requestedMax: unknown, requestedMinAgeMinutes: unknown) {
   const max = asPositiveInt(requestedMax, 20, 50);
   const minAgeMinutes = asPositiveInt(requestedMinAgeMinutes, 180, 24 * 60);
   const nowMs = Date.now();
   const allTasks = await loadAllTasks(client);
-  const candidates = allTasks
+
+  // Pass 1: validation_contract_mismatch — requires manual alignment marker
+  const contractCandidates = allTasks
     .filter(
       (task) =>
         task.status === "blocked" &&
@@ -4314,7 +4325,7 @@ async function runValidationCleanup(client: ConvexHttpClient, requestedMax: unkn
   const requeued: string[] = [];
   const skipped: Array<{ id: string; reason: string }> = [];
 
-  for (const task of candidates) {
+  for (const task of contractCandidates) {
     const desc = String(task.description ?? "").toLowerCase();
     if (!desc.includes(marker)) {
       skipped.push({ id: String(task._id), reason: "alignment_marker_missing" });
@@ -4333,12 +4344,39 @@ async function runValidationCleanup(client: ConvexHttpClient, requestedMax: unkn
     requeued.push(String(task._id));
   }
 
+  // Pass 2: rate_limit_constraint — auto-unblock after quota TTL (no manual marker required).
+  // Quota windows are time-based and self-resolving; keeping these blocked forever causes
+  // Lyra/Nova queue stalls and inflates blocked_ratio alerts.
+  const rateLimitCandidates = allTasks
+    .filter(
+      (task) =>
+        task.status === "blocked" &&
+        String(task.blocked_reason ?? "") === "rate_limit_constraint" &&
+        backlogAgeMinutes(task, nowMs) >= RATE_LIMIT_AUTO_UNBLOCK_MINUTES
+    )
+    .slice(0, Math.max(1, max - requeued.length));
+
+  const rateLimitRequeued: string[] = [];
+  for (const task of rateLimitCandidates) {
+    await client.mutation(api.tasks.updateTask, {
+      id: task._id,
+      blocked_reason: undefined,
+      blocked_until: undefined,
+      unblock_signal: undefined,
+      same_reason_fail_streak: 0,
+      last_validation_reason: undefined,
+    });
+    await client.mutation(api.tasks.updateStatus, { id: task._id, status: "backlog" });
+    rateLimitRequeued.push(String(task._id));
+  }
+
   return {
     ok: true,
     action: "validation_cleanup" as const,
-    scanned: candidates.length,
-    requeued: requeued.length,
-    requeued_task_ids: requeued,
+    scanned: contractCandidates.length + rateLimitCandidates.length,
+    requeued: requeued.length + rateLimitRequeued.length,
+    requeued_task_ids: [...requeued, ...rateLimitRequeued],
+    rate_limit_auto_unblocked: rateLimitRequeued.length,
     skipped,
     minAgeMinutes,
     requiredMarker: marker,
