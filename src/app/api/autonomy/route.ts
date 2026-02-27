@@ -3187,11 +3187,11 @@ async function runClaim(client: ConvexHttpClient, requestedAssignee: unknown) {
   const claimNowIso = new Date(claimNowMs).toISOString();
   const claimLeaseUntilIso = new Date(claimNowMs + LEASE_MINUTES_BY_ASSIGNEE[assignee] * 60 * 1000).toISOString();
   const cleanedSelectedDesc = stripStaleLeaseMarkers(selected.description);
-  // Single atomic mutation: set status + owner + lease in one call to avoid
-  // a zombie window where status=in_progress but owner is not yet written.
+  // Compatibility path for deployments where Convex updateTask args may not yet
+  // accept status updates; set status via updateStatus first, then lease metadata.
+  await client.mutation(api.tasks.updateStatus, { id: selected._id, status: "in_progress" });
   await client.mutation(api.tasks.updateTask, {
     id: selected._id,
-    status: "in_progress",
     owner: assignee,
     lease_until: claimLeaseUntilIso,
     heartbeat_at: claimNowIso,
