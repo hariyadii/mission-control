@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+REPORT_DIR="/home/ubuntu/.openclaw/workspace/reports"
+OUT_FILE="$REPORT_DIR/ops-daily-selftest.log"
+mkdir -p "$REPORT_DIR"
+TS="$(date -Iseconds)"
+MONITOR_TIMER="$(systemctl --user show openclaw-ops-monitor.timer --property=ActiveState --value 2>/dev/null || echo unknown)"
+WORKER_TIMER="$(systemctl --user show openclaw-ops-worker.timer --property=ActiveState --value 2>/dev/null || echo unknown)"
+LAST_MONITOR="$(tail -n 200 "$REPORT_DIR/ops-monitor-cycle.log" 2>/dev/null | awk '/status=ok cycle=monitor/{print $1}' | tail -n1)"
+LAST_WORKER="$(tail -n 200 "$REPORT_DIR/ops-worker-cycle.log" 2>/dev/null | awk '/status=ok cycle=worker/{print $1}' | tail -n1)"
+AUTONOMY="$(curl -s -X POST http://127.0.0.1:3001/api/autonomy -H 'content-type: application/json' -d '{"action":"status"}')"
+ACTIVE_ERRORS="$(echo "$AUTONOMY" | jq -r '.workflowHealth.activeCronErrors // -1')"
+OPS_SOURCE="$(echo "$AUTONOMY" | jq -r '.workflowHealth.opsHealthSource // "none"')"
+OPS_HEALTHY="$(echo "$AUTONOMY" | jq -r '.workflowHealth.opsExecutorHealthy // false')"
+LINE="ops_daily_selftest ts=$TS monitor_timer=$MONITOR_TIMER worker_timer=$WORKER_TIMER last_monitor=$LAST_MONITOR last_worker=$LAST_WORKER active_cron_errors=$ACTIVE_ERRORS ops_source=$OPS_SOURCE ops_executor_healthy=$OPS_HEALTHY"
+echo "$LINE" >> "$OUT_FILE"
+echo "$LINE"

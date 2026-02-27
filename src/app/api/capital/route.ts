@@ -185,9 +185,23 @@ async function runStatus() {
     if (pos.side === "long") {
       if (pos.currentPrice <= pos.stopLoss) alerts.push(`STOP: ${pos.symbol} hit stop-loss at ${pos.currentPrice}`);
       if (pos.currentPrice >= pos.takeProfit) alerts.push(`TARGET: ${pos.symbol} hit take-profit at ${pos.currentPrice}`);
+      // Proximity warnings (within 5% of stop/target)
+      const stopProximity = pos.stopLoss * 1.05;
+      const targetProximity = pos.takeProfit * 0.95;
+      if (pos.currentPrice <= stopProximity && pos.currentPrice > pos.stopLoss) alerts.push(`PROXIMITY: ${pos.symbol} approaching stop-loss (${((1 - pos.currentPrice/pos.stopLoss)*100).toFixed(1)}% away)`);
+      if (pos.currentPrice >= targetProximity && pos.currentPrice < pos.takeProfit) alerts.push(`PROXIMITY: ${pos.symbol} approaching take-profit (${((pos.takeProfit - pos.currentPrice)/pos.takeProfit*100).toFixed(1)}% away)`);
     } else {
       if (pos.currentPrice >= pos.stopLoss) alerts.push(`STOP: ${pos.symbol} hit stop-loss at ${pos.currentPrice}`);
       if (pos.currentPrice <= pos.takeProfit) alerts.push(`TARGET: ${pos.symbol} hit take-profit at ${pos.currentPrice}`);
+    }
+  }
+
+  // Trigger automated exit alerts if stop/target/proximity alert detected
+  if (alerts.some(a => a.startsWith("STOP:") || a.startsWith("TARGET:") || a.startsWith("PROXIMITY:"))) {
+    try {
+      await exec(`node ${LYRA_ROOT}/autonomy/capital/alerts/alert-manager.js check`, { timeout: 15000 });
+    } catch (err) {
+      console.error("Alert notification failed:", err);
     }
   }
 
@@ -368,6 +382,15 @@ async function runReview(body: Record<string, unknown>) {
   return { ok: true, action: "review" as const, reviewPath, snapshot: { totalEquity: portfolio.totalEquity, totalPnl: portfolio.totalPnl, wins, losses } };
 }
 
+async function runSignals() {
+  const { stdout } = await exec(
+    `node ${LYRA_ROOT}/tools/signal-ledger/strategy-signal-monitor.js check`,
+    { timeout: 15000 }
+  );
+  const signals = JSON.parse(stdout);
+  return { ok: true, action: "signals" as const, ...signals };
+}
+
 async function runMetrics() {
   const portfolio = await loadPortfolio();
   let closedTradesData: ClosedTradeLog[] = [];
@@ -410,6 +433,78 @@ async function runMetrics() {
   };
 }
 
+async function runAlerts() {
+  const { stdout } = await exec(
+    `node ${LYRA_ROOT}/autonomy/capital/alerts/alert-manager.js check`,
+    { timeout: 15000 }
+  );
+  const alertResult = JSON.parse(stdout);
+  return { ok: true, action: "alerts" as const, ...alertResult };
+}
+
+async function runAlertConfig() {
+  const { stdout } = await exec(
+    `node ${LYRA_ROOT}/autonomy/capital/alerts/alert-manager.js config`,
+    { timeout: 10000 }
+  );
+  const config = JSON.parse(stdout);
+  return { ok: true, action: "alertConfig" as const, config };
+}
+
+async function runTrailingStop() {
+  // Import and run the ATR trailing stop system
+  const { stdout } = await exec(
+    `python3 ${LYRA_ROOT}/autonomy/capital/atr_trailing_stop.py`,
+    { timeout: 15000 }
+  );
+  const recommendations = JSON.parse(stdout);
+  
+  // Load portfolio to compare with current stops
+  const portfolio = await loadPortfolio();
+  const positions = portfolio.positions;
+  
+  // Calculate improvements for each open position
+  const positionUpdates = [];
+  for (const pos of positions) {
+    const symbol = pos.symbol;
+    if (recommendations[symbol]) {
+      const rec = recommendations[symbol];
+      const currentStopPct = Math.abs((pos.stopLoss - pos.entryPrice) / pos.entryPrice * 100);
+      const recommendedStopPct = rec.recommended_stop_pct || rec.atr_stop_pct;
+      
+      positionUpdates.push({
+        id: pos.id,
+        symbol: pos.symbol,
+        side: pos.side,
+        entryPrice: pos.entryPrice,
+        currentPrice: pos.currentPrice,
+        currentStopLoss: pos.stopLoss,
+        recommendedStopLoss: rec.trailing_stop,
+        currentStopPct: currentStopPct.toFixed(2),
+        recommendedStopPct: recommendedStopPct.toFixed(2),
+        improvementPct: (currentStopPct - recommendedStopPct).toFixed(2),
+        atrPct: rec.atr_pct,
+        regime: rec.regime,
+        shouldUpdate: rec.trailing_stop > pos.stopLoss && pos.side === "long"
+      });
+    }
+  }
+  
+  return { 
+    ok: true, 
+    action: "trailing_stop" as const, 
+    recommendations,
+    positionUpdates,
+    summary: {
+      totalPositions: positions.length,
+      positionsToUpdate: positionUpdates.filter(p => p.shouldUpdate).length,
+      averageImprovement: positionUpdates.length > 0 
+        ? (positionUpdates.reduce((sum, p) => sum + parseFloat(p.improvementPct), 0) / positionUpdates.length).toFixed(2)
+        : "0.00"
+    }
+  };
+}
+
 export async function GET() {
   return runMetrics().then((result) => NextResponse.json(result));
 }
@@ -424,6 +519,10 @@ export async function POST(request: Request) {
     if (action === "close") return NextResponse.json(await runClose(body));
     if (action === "review") return NextResponse.json(await runReview(body));
     if (action === "metrics") return NextResponse.json(await runMetrics());
+    if (action === "signals") return NextResponse.json(await runSignals());
+    if (action === "alerts") return NextResponse.json(await runAlerts());
+    if (action === "alertConfig") return NextResponse.json(await runAlertConfig());
+    if (action === "trailing_stop") return NextResponse.json(await runTrailingStop());
 
     return NextResponse.json({ ok: false, error: "unsupported action" }, { status: 400 });
   } catch (error) {

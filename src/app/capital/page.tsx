@@ -2,6 +2,32 @@
 
 import { useEffect, useState } from "react";
 
+// Visual consistency components (matching homepage)
+function FreshnessIndicator({ lastUpdate }: { lastUpdate: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = now - lastUpdate;
+  const isStale = diff > 60000;
+  return (
+    <span className={`text-[10px] ${isStale ? "text-amber-400" : "text-emerald-400"}`}>
+      {isStale ? "⚠" : "●"} {diff > 3600000 ? `${Math.floor(diff/3600000)}h` : diff > 60000 ? `${Math.floor(diff/60000)}m` : "now"}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; color: string; bg: string }> = {
+    ok: { label: "OK", color: "text-emerald-300", bg: "bg-emerald-500/20" },
+    paper: { label: "PAPER", color: "text-violet-300", bg: "bg-violet-500/20" },
+    live: { label: "LIVE", color: "text-rose-300", bg: "bg-rose-500/20" },
+  };
+  const c = config[status?.toLowerCase()] || { label: status?.slice(0, 6).toUpperCase() || "—", color: "text-slate-300", bg: "bg-slate-500/20" };
+  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${c.color} ${c.bg}`}>{c.label}</span>;
+}
+
 type CapitalMetrics = {
   ok: boolean;
   portfolio: {
@@ -69,6 +95,7 @@ type StatusPayload = {
 export default function CapitalPage() {
   const [metrics, setMetrics] = useState<CapitalMetrics | null>(null);
   const [status, setStatus] = useState<StatusPayload | null>(null);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
 
   const refresh = async () => {
     const [metricsRes, statusRes] = await Promise.all([
@@ -81,6 +108,7 @@ export default function CapitalPage() {
     ]);
     if (metricsRes.ok) setMetrics((await metricsRes.json()) as CapitalMetrics);
     if (statusRes.ok) setStatus((await statusRes.json()) as StatusPayload);
+    setLastUpdate(Date.now());
   };
 
   useEffect(() => {
@@ -92,93 +120,121 @@ export default function CapitalPage() {
   const p = metrics?.portfolio;
 
   return (
-    <div className="space-y-6">
-      <header className="page-header">
+    <div className="space-y-3">
+      {/* HEADER - Consistent with homepage */}
+      <header className="flex items-center justify-between">
         <div>
-          <h1 className="page-title">Capital Lane</h1>
-          <p className="page-subtitle">Lyra's paper portfolio, performance, and strategy health.</p>
+          <h1 className="text-xl font-semibold text-slate-100">Capital</h1>
+          <p className="text-xs text-slate-400">Lyra portfolio & trades</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FreshnessIndicator lastUpdate={lastUpdate} />
+          <StatusBadge status={p?.mode || "paper"} />
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: "Equity", value: p ? `$${p.totalEquity.toLocaleString()}` : "..." },
-          { label: "PnL", value: p ? `${p.totalPnl >= 0 ? "+" : ""}$${p.totalPnl.toFixed(2)} (${p.totalPnlPct.toFixed(2)}%)` : "..." },
-          { label: "Drawdown", value: p ? `${p.drawdownPct.toFixed(2)}%` : "..." },
-          { label: "Mode", value: p ? `${p.mode} • ${p.status}` : "..." },
-        ].map((item) => (
-          <div key={item.label} className="panel-glass p-5">
-            <p className="m-0 text-xs uppercase tracking-[0.18em] text-slate-300">{item.label}</p>
-            <p className="m-0 mt-2 text-xl font-semibold text-slate-100">{item.value}</p>
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="panel-glass p-3">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500">Equity</p>
+          <p className="text-lg font-semibold text-slate-100 mt-1">
+            {p ? `$${(p.totalEquity/1000).toFixed(1)}k` : "—"}
+          </p>
+        </div>
+        <div className="panel-glass p-3">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500">PnL</p>
+          <p className={`text-lg font-semibold mt-1 ${p?.totalPnl && p.totalPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+            {p ? `${p.totalPnl >= 0 ? "+" : ""}${p.totalPnlPct.toFixed(1)}%` : "—"}
+          </p>
+        </div>
+        <div className="panel-glass p-3">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500">Drawdown</p>
+          <p className="text-lg font-semibold text-slate-100 mt-1">
+            {p ? `${p.drawdownPct.toFixed(1)}%` : "—"}
+          </p>
+        </div>
+        <div className="panel-glass p-3">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500">Positions</p>
+          <p className="text-lg font-semibold text-slate-100 mt-1">
+            {status?.portfolio?.positions?.length ?? "—"}
+          </p>
+        </div>
+      </div>
+
+      {/* Strategy Stats */}
+      <section className="panel-glass p-3">
+        <h2 className="text-xs font-semibold text-slate-300 mb-2">Strategy Stats</h2>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-xs">
+          <div>
+            <p className="text-slate-500">Wins</p>
+            <p className="text-slate-200">{metrics?.stats.wins ?? "—"}</p>
           </div>
-        ))}
+          <div>
+            <p className="text-slate-500">Losses</p>
+            <p className="text-slate-200">{metrics?.stats.losses ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-slate-500">Win Rate</p>
+            <p className="text-emerald-400">{metrics?.stats.winRate != null ? `${(metrics.stats.winRate * 100).toFixed(0)}%` : "—"}</p>
+          </div>
+          <div>
+            <p className="text-slate-500">Avg Win</p>
+            <p className="text-slate-200">${metrics?.stats.avgWin?.toFixed(0) ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-slate-500">Avg Loss</p>
+            <p className="text-slate-200">${metrics?.stats.avgLoss?.toFixed(0) ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-slate-500">Expectancy</p>
+            <p className="text-cyan-400">{metrics?.stats.expectancy != null ? `$${metrics.stats.expectancy.toFixed(0)}` : "—"}</p>
+          </div>
+        </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <article className="panel-glass p-5">
-          <h2 className="m-0 text-lg font-semibold text-slate-100">Strategy Stats</h2>
-          <div className="mt-3 space-y-2 text-sm text-slate-300">
-            <p className="m-0">Wins: {metrics?.stats.wins ?? "..."}</p>
-            <p className="m-0">Losses: {metrics?.stats.losses ?? "..."}</p>
-            <p className="m-0">Win Rate: {metrics?.stats.winRate != null ? `${(metrics.stats.winRate * 100).toFixed(1)}%` : "n/a"}</p>
-            <p className="m-0">Avg Win: ${metrics?.stats.avgWin?.toFixed?.(2) ?? "0.00"}</p>
-            <p className="m-0">Avg Loss: ${metrics?.stats.avgLoss?.toFixed?.(2) ?? "0.00"}</p>
-            <p className="m-0">Expectancy: {metrics?.stats.expectancy != null ? `$${metrics.stats.expectancy.toFixed(2)}` : "n/a"}</p>
-          </div>
-        </article>
-
-        <article className="panel-glass p-5">
-          <h2 className="m-0 text-lg font-semibold text-slate-100">Symbols</h2>
-          <div className="mt-3 space-y-2">
-            {metrics && Object.keys(metrics.bySymbol).length > 0 ? (
-              Object.entries(metrics.bySymbol).map(([sym, data]) => (
-                <div key={sym} className="panel-soft flex items-center justify-between px-3 py-2 text-sm">
-                  <span>{sym}</span>
-                  <span>{data.trades} trades • {data.pnl >= 0 ? "+" : ""}${data.pnl.toFixed(2)}</span>
-                </div>
-              ))
-            ) : (
-              <div className="panel-soft p-3 text-sm text-slate-400">No symbol history yet.</div>
-            )}
-          </div>
-        </article>
-      </section>
-
-      <section className="panel-glass p-5">
-        <h2 className="m-0 text-lg font-semibold text-slate-100">Open Positions</h2>
-        <div className="mt-3 space-y-2">
+      {/* Open Positions */}
+      <section className="panel-glass p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs font-semibold text-slate-300">Positions</h2>
+          <span className="text-[9px] text-slate-500">{status?.portfolio?.positions?.length ?? 0} open</span>
+        </div>
+        <div className="space-y-1 max-h-[200px] overflow-y-auto">
           {status?.portfolio?.positions?.length ? (
             status.portfolio.positions.map((pos) => (
-              <div key={pos.id} className="panel-soft px-3 py-3 text-sm">
+              <div key={pos.id} className="panel-soft px-2 py-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-100">{pos.symbol} • {pos.side}</span>
-                  <span className={pos.unrealizedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}>
-                    {pos.unrealizedPnl >= 0 ? "+" : ""}${pos.unrealizedPnl.toFixed(2)} ({pos.unrealizedPnlPct.toFixed(2)}%)
+                  <span className="text-slate-200 font-medium">{pos.symbol} <span className="text-slate-500">{pos.side}</span></span>
+                  <span className={pos.unrealizedPnl >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                    {pos.unrealizedPnl >= 0 ? "+" : ""}{pos.unrealizedPnlPct.toFixed(1)}%
                   </span>
                 </div>
-                <p className="m-0 mt-1 text-xs text-slate-400">
-                  Entry ${pos.entryPrice.toFixed(2)} • Now ${pos.currentPrice.toFixed(2)} • SL ${pos.stopLoss.toFixed(2)} • TP ${pos.takeProfit.toFixed(2)}
-                </p>
+                <div className="flex justify-between mt-0.5 text-[9px] text-slate-500">
+                  <span>${pos.entryPrice.toFixed(2)} → ${pos.currentPrice.toFixed(2)}</span>
+                  <span>SL ${pos.stopLoss} TP {pos.takeProfit}</span>
+                </div>
               </div>
             ))
           ) : (
-            <div className="panel-soft p-3 text-sm text-slate-400">No open positions.</div>
+            <p className="text-xs text-slate-500 text-center py-3">No open positions</p>
           )}
         </div>
       </section>
 
-      <section className="panel-glass p-5">
-        <h2 className="m-0 text-lg font-semibold text-slate-100">Recent Trades</h2>
-        <div className="mt-3 space-y-2">
+      {/* Recent Trades */}
+      <section className="panel-glass p-3">
+        <h2 className="text-xs font-semibold text-slate-300 mb-2">Recent Trades</h2>
+        <div className="space-y-1 max-h-[150px] overflow-y-auto">
           {metrics?.recentTrades?.length ? (
-            metrics.recentTrades.map((t) => (
-              <div key={t.id} className="panel-soft flex items-center justify-between px-3 py-2 text-sm">
-                <span>{t.symbol} • {t.side}</span>
-                <span>{t.realizedPnl >= 0 ? "+" : ""}${t.realizedPnl.toFixed(2)} ({t.realizedPnlPct.toFixed(2)}%)</span>
+            metrics.recentTrades.slice(0, 8).map((t) => (
+              <div key={t.id} className="flex items-center justify-between px-2 py-1 text-xs">
+                <span className="text-slate-300">{t.symbol} <span className="text-slate-500">{t.side}</span></span>
+                <span className={t.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                  {t.realizedPnl >= 0 ? "+" : ""}${t.realizedPnl.toFixed(0)}
+                </span>
               </div>
             ))
           ) : (
-            <div className="panel-soft p-3 text-sm text-slate-400">No closed trades yet.</div>
+            <p className="text-xs text-slate-500 text-center py-3">No closed trades</p>
           )}
         </div>
       </section>

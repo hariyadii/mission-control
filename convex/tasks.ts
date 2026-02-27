@@ -1,8 +1,22 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-const ASSIGNEE = v.union(v.literal("me"), v.literal("alex"), v.literal("sam"), v.literal("lyra"), v.literal("agent"));
-const STATUS = v.union(v.literal("suggested"), v.literal("backlog"), v.literal("in_progress"), v.literal("done"));
+const ASSIGNEE = v.union(
+  v.literal("me"),
+  v.literal("alex"),
+  v.literal("sam"),
+  v.literal("lyra"),
+  v.literal("nova"),
+  v.literal("ops"),
+  v.literal("agent")
+);
+const STATUS = v.union(
+  v.literal("suggested"),
+  v.literal("backlog"),
+  v.literal("in_progress"),
+  v.literal("blocked"),
+  v.literal("done")
+);
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -55,9 +69,22 @@ export const create = mutation({
       retry_count_total: 0,
       retry_count_run: 0,
       blocked_reason: undefined,
+      blocked_until: undefined,
+      unblock_signal: undefined,
+      last_validation_reason: undefined,
+      same_reason_fail_streak: 0,
+      remediation_task_id: undefined,
+      remediation_source: undefined,
+      incident_fingerprint: undefined,
+      auto_recovery_attempts: 0,
+      escalated_to_user_at: undefined,
 
       artifact_path: undefined,
       validation_status: "pending",
+      changelog_path: undefined,
+      changelog_feature: undefined,
+      changelog_status: "pending",
+      changelog_last_checked_at: undefined,
     });
   },
 });
@@ -68,7 +95,21 @@ export const updateStatus = mutation({
     status: STATUS,
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, { status: args.status, updated_at: nowIso() });
+    const patch: Record<string, unknown> = {
+      status: args.status,
+      updated_at: nowIso(),
+    };
+    if (args.status !== "in_progress") {
+      patch.owner = undefined;
+      patch.lease_until = undefined;
+      patch.heartbeat_at = undefined;
+    }
+    if (args.status !== "blocked") {
+      patch.blocked_reason = undefined;
+      patch.blocked_until = undefined;
+      patch.unblock_signal = undefined;
+    }
+    await ctx.db.patch(args.id, patch);
   },
 });
 
@@ -92,8 +133,21 @@ export const updateTask = mutation({
     retry_count_total: v.optional(v.number()),
     retry_count_run: v.optional(v.number()),
     blocked_reason: v.optional(v.string()),
+    blocked_until: v.optional(v.string()),
+    unblock_signal: v.optional(v.string()),
+    last_validation_reason: v.optional(v.string()),
+    same_reason_fail_streak: v.optional(v.number()),
+    remediation_task_id: v.optional(v.string()),
+    remediation_source: v.optional(v.string()),
+    incident_fingerprint: v.optional(v.string()),
+    auto_recovery_attempts: v.optional(v.number()),
+    escalated_to_user_at: v.optional(v.string()),
     artifact_path: v.optional(v.string()),
     validation_status: v.optional(v.union(v.literal("pending"), v.literal("pass"), v.literal("fail"))),
+    changelog_path: v.optional(v.string()),
+    changelog_feature: v.optional(v.string()),
+    changelog_status: v.optional(v.union(v.literal("pending"), v.literal("pass"), v.literal("fail"))),
+    changelog_last_checked_at: v.optional(v.string()),
     idempotency_key: v.optional(v.string()),
     intent_window: v.optional(v.string()),
     workflow_contract_version: v.optional(v.string()),
@@ -163,6 +217,8 @@ export const claimForAssignee = mutation({
       heartbeat_at: nowIsoString,
       retry_count_run: 0,
       blocked_reason: undefined,
+      blocked_until: undefined,
+      unblock_signal: undefined,
       validation_status: "pending",
       updated_at: nowIsoString,
     });
@@ -201,7 +257,17 @@ export const completeTask = mutation({
     output: v.optional(v.string()),
     artifact_path: v.optional(v.string()),
     validation_status: v.optional(v.union(v.literal("pass"), v.literal("fail"))),
+    changelog_path: v.optional(v.string()),
+    changelog_feature: v.optional(v.string()),
+    changelog_status: v.optional(v.union(v.literal("pending"), v.literal("pass"), v.literal("fail"))),
+    changelog_last_checked_at: v.optional(v.string()),
     blocked_reason: v.optional(v.string()),
+    blocked_until: v.optional(v.string()),
+    unblock_signal: v.optional(v.string()),
+    remediation_source: v.optional(v.string()),
+    incident_fingerprint: v.optional(v.string()),
+    auto_recovery_attempts: v.optional(v.number()),
+    escalated_to_user_at: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.id);
@@ -218,22 +284,39 @@ export const completeTask = mutation({
     }
 
     const success = (args.validation_status ?? "pass") === "pass";
+    const blockedReason = args.blocked_reason ?? "validation_failed";
+    const blockedLike =
+      /market|regime|platform|dependency|await|upstream|rate[_ -]?limit|maintenance|window|liquidity|exchange/i.test(
+        blockedReason
+      );
 
     await ctx.db.patch(args.id, {
       description,
       artifact_path: args.artifact_path,
       validation_status: success ? "pass" : "fail",
-      blocked_reason: success ? undefined : (args.blocked_reason ?? "validation_failed"),
-      status: success ? "done" : "backlog",
+      blocked_reason: success ? undefined : blockedLike ? blockedReason : undefined,
+      blocked_until: success ? undefined : blockedLike ? (args.blocked_until ?? task.blocked_until ?? "condition_based") : undefined,
+      unblock_signal: success ? undefined : blockedLike ? (args.unblock_signal ?? task.unblock_signal ?? "manual_recheck") : undefined,
+      remediation_source: args.remediation_source ?? (success ? undefined : task.remediation_source),
+      incident_fingerprint: args.incident_fingerprint ?? (success ? undefined : task.incident_fingerprint),
+      auto_recovery_attempts: args.auto_recovery_attempts ?? (success ? 0 : task.auto_recovery_attempts ?? 0),
+      escalated_to_user_at: args.escalated_to_user_at ?? task.escalated_to_user_at,
+      status: success ? "done" : blockedLike ? "blocked" : "backlog",
+      changelog_path: args.changelog_path,
+      changelog_feature: args.changelog_feature,
+      changelog_status: args.changelog_status ?? (success ? "pass" : "fail"),
+      changelog_last_checked_at: args.changelog_last_checked_at ?? nowIso(),
       owner: undefined,
       lease_until: undefined,
       heartbeat_at: nowIso(),
       retry_count_run: success ? 0 : (task.retry_count_run ?? 0) + 1,
       retry_count_total: success ? (task.retry_count_total ?? 0) : (task.retry_count_total ?? 0) + 1,
+      last_validation_reason: success ? undefined : blockedReason,
+      same_reason_fail_streak: success ? 0 : task.last_validation_reason === blockedReason ? (task.same_reason_fail_streak ?? 0) + 1 : 1,
       updated_at: nowIso(),
     });
 
-    return { ok: true, status: success ? "done" : "backlog" };
+    return { ok: true, status: success ? "done" : blockedLike ? "blocked" : "backlog" };
   },
 });
 
@@ -253,16 +336,68 @@ export const requeueExpiredLeases = mutation({
       .slice(0, max);
 
     for (const task of expired) {
+      const staleMarker = `stale_lease_requeued:${nowIso()}`;
+      const previousDescription = task.description?.trim() ?? "";
+      const description = previousDescription ? `${previousDescription}\n${staleMarker}` : staleMarker;
       await ctx.db.patch(task._id, {
         status: "backlog",
         owner: undefined,
         lease_until: undefined,
-        blocked_reason: "stale_lease",
+        blocked_reason: undefined,
+        blocked_until: undefined,
+        unblock_signal: undefined,
+        description,
         retry_count_total: (task.retry_count_total ?? 0) + 1,
         updated_at: nowIso(),
       });
     }
 
     return { ok: true, requeued: expired.length };
+  },
+});
+
+export const normalizeBlockedState = mutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun === true;
+    const all = await ctx.db.query("tasks").collect();
+    let movedBacklogToBlocked = 0;
+    let clearedNonBlockedMetadata = 0;
+
+    for (const task of all) {
+      const hasBlockedMeta = Boolean(task.blocked_reason || task.blocked_until || task.unblock_signal);
+      if (task.status === "backlog" && hasBlockedMeta && task.blocked_reason) {
+        movedBacklogToBlocked += 1;
+        if (!dryRun) {
+          await ctx.db.patch(task._id, {
+            status: "blocked",
+            updated_at: nowIso(),
+          });
+        }
+        continue;
+      }
+
+      if (task.status !== "blocked" && hasBlockedMeta) {
+        clearedNonBlockedMetadata += 1;
+        if (!dryRun) {
+          await ctx.db.patch(task._id, {
+            blocked_reason: undefined,
+            blocked_until: undefined,
+            unblock_signal: undefined,
+            updated_at: nowIso(),
+          });
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      dryRun,
+      total: all.length,
+      movedBacklogToBlocked,
+      clearedNonBlockedMetadata,
+    };
   },
 });

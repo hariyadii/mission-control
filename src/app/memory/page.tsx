@@ -1,6 +1,22 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 
+// Visual consistency components (matching homepage)
+function FreshnessIndicator({ lastUpdate }: { lastUpdate: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = now - lastUpdate;
+  const isStale = diff > 60000;
+  return (
+    <span className={`text-[10px] ${isStale ? "text-amber-400" : "text-emerald-400"}`}>
+      {isStale ? "⚠" : "●"} {diff > 3600000 ? `${Math.floor(diff/3600000)}h` : diff > 60000 ? `${Math.floor(diff/60000)}m` : "now"}
+    </span>
+  );
+}
+
 type MemoryData = {
   longTerm: { name: string; content: string };
   daily: { name: string; content: string; date: string }[];
@@ -8,30 +24,26 @@ type MemoryData = {
 
 function MemoryCard({ title, content, date }: { title: string; content: string; date?: string }) {
   const [expanded, setExpanded] = useState(false);
-  const preview = content.slice(0, 300);
-  const hasMore = content.length > 300;
+  const preview = content.slice(0, 200);
+  const hasMore = content.length > 200;
 
   return (
-    <article className="panel-soft p-4">
-      <div className="mb-2 flex items-start justify-between gap-2">
+    <article className="panel-soft p-2">
+      <div className="flex items-center justify-between gap-2 mb-1">
         <div>
-          <p className="m-0 text-sm font-semibold text-slate-100">{title}</p>
-          {date && <p className="m-0 mt-0.5 text-xs text-slate-400">{date}</p>}
+          <p className="text-xs font-semibold text-slate-200">{title}</p>
+          {date && <p className="text-[9px] text-slate-500">{date}</p>}
         </div>
         {hasMore && (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              setExpanded(!expanded);
-            }}
-            className="btn-secondary px-2.5 py-1 text-xs"
+            onClick={() => setExpanded(!expanded)}
+            className="text-[9px] text-cyan-400 hover:text-cyan-300"
           >
             {expanded ? "Collapse" : "Expand"}
           </button>
         )}
       </div>
-      <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-slate-300">
+      <pre className="whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-slate-400">
         {expanded ? content : preview + (hasMore ? "..." : "")}
       </pre>
     </article>
@@ -42,6 +54,7 @@ export default function MemoryPage() {
   const [query, setQuery] = useState("");
   const [data, setData] = useState<MemoryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
 
   const fetchMemory = useCallback(async (q: string) => {
     setLoading(true);
@@ -49,6 +62,7 @@ export default function MemoryPage() {
       const res = await fetch(`/api/memory?q=${encodeURIComponent(q)}`);
       const json = await res.json();
       setData(json);
+      setLastUpdate(Date.now());
     } catch {
       setData(null);
     } finally {
@@ -68,49 +82,52 @@ export default function MemoryPage() {
   }, [query, fetchMemory]);
 
   return (
-    <div className="space-y-6">
-      <header className="page-header">
+    <div className="space-y-3">
+      {/* HEADER - Consistent with homepage */}
+      <header className="flex items-center justify-between">
         <div>
-          <h1 className="page-title">Memory</h1>
-          <p className="page-subtitle">Search across long-term memory and daily notes.</p>
+          <h1 className="text-xl font-semibold text-slate-100">Memory</h1>
+          <p className="text-xs text-slate-400">Search & logs</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FreshnessIndicator lastUpdate={lastUpdate} />
         </div>
       </header>
 
-      <section className="panel-glass p-5">
-        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">Search Memory</label>
+      {/* Search Bar */}
+      <div className="panel-glass p-2">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Type to filter memory files..."
-          className="input-glass max-w-xl"
+          placeholder="Search memory..."
+          className="w-full bg-slate-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/50"
         />
-      </section>
+      </div>
 
       {loading ? (
-        <div className="panel-soft p-4 text-sm text-slate-300">Loading memory...</div>
+        <div className="panel-soft p-3 text-xs text-slate-400">Loading...</div>
       ) : !data ? (
-        <div className="panel-soft border-rose-400/35 p-4 text-sm text-rose-200">Failed to load memory.</div>
+        <div className="panel-soft p-3 text-xs text-rose-400">Failed to load memory</div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-2">
+          {/* Long-Term Memory */}
           {data.longTerm.content && (
-            <section className="panel-glass p-5">
-              <h2 className="m-0 text-base font-semibold text-violet-200">Long-Term Memory</h2>
-              <p className="m-0 mt-1 text-xs text-slate-400">MEMORY.md</p>
-              <div className="mt-3">
-                <MemoryCard title="MEMORY.md" content={data.longTerm.content} />
-              </div>
+            <section className="panel-glass p-2">
+              <h2 className="text-xs font-semibold text-violet-300 mb-2">Long-Term</h2>
+              <MemoryCard title="MEMORY.md" content={data.longTerm.content} />
             </section>
           )}
 
-          <section className="panel-glass p-5">
-            <h2 className="m-0 text-base font-semibold text-cyan-200">Daily Notes</h2>
+          {/* Daily Notes */}
+          <section className="panel-glass p-2">
+            <h2 className="text-xs font-semibold text-cyan-300 mb-2">Daily Notes</h2>
             {data.daily.length === 0 ? (
-              <div className="panel-soft mt-3 p-6 text-center text-sm text-slate-400">
-                {query ? "No matching memory files." : "No daily memory files found."}
-              </div>
+              <p className="text-[10px] text-slate-500 text-center py-2">
+                {query ? "No matches" : "No daily files"}
+              </p>
             ) : (
-              <div className="mt-3 space-y-2.5">
-                {data.daily.map((file) => (
+              <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                {data.daily.slice(0, 10).map((file) => (
                   <MemoryCard key={file.name} title={file.name} content={file.content} date={file.date} />
                 ))}
               </div>

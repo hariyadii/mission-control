@@ -3,18 +3,18 @@ import { api } from "../../../../convex/_generated/api";
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 
-type Assignee = "me" | "alex" | "sam" | "lyra" | "agent";
-type Status = "suggested" | "backlog" | "in_progress" | "done";
+type Assignee = "me" | "alex" | "sam" | "lyra" | "nova" | "ops" | "agent";
+type Status = "suggested" | "backlog" | "in_progress" | "blocked" | "done";
 
 function normalizeAssignee(value: unknown): Assignee {
   const v = String(value ?? "sam").toLowerCase();
-  if (v === "alex" || v === "sam" || v === "lyra" || v === "me" || v === "agent") return v;
+  if (v === "alex" || v === "sam" || v === "lyra" || v === "nova" || v === "ops" || v === "me" || v === "agent") return v;
   return "sam";
 }
 
 function normalizeStatus(value: unknown): Status {
   const v = String(value ?? "suggested").toLowerCase();
-  if (v === "suggested" || v === "backlog" || v === "in_progress" || v === "done") return v;
+  if (v === "suggested" || v === "backlog" || v === "in_progress" || v === "blocked" || v === "done") return v;
   return "suggested";
 }
 

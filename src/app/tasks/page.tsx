@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 
@@ -270,21 +271,100 @@ export default function TasksPage() {
   const updateStatus = useMutation(api.tasks.updateStatus);
   const updateTask = useMutation(api.tasks.updateTask);
   const removeTask = useMutation(api.tasks.remove);
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
-  const [filterAssignee, setFilterAssignee] = useState<Assignee | "all">("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Initialize filters from URL query params
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>(() => 
+    (searchParams.get("status") as FilterStatus) || "all"
+  );
+  const [filterAssignee, setFilterAssignee] = useState<Assignee | "all">(() => 
+    (searchParams.get("assignee") as Assignee | "all") || "all"
+  );
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") || "");
+  const [dateFrom, setDateFrom] = useState<string>(() => searchParams.get("from") || "");
+  const [dateTo, setDateTo] = useState<string>(() => searchParams.get("to") || "");
   const [lastUpdate, setLastUpdate] = useState(Date.now());
   const [draftHealth, setDraftHealth] = useState<DraftHealth>({ status: "ok" });
+  const [showDateFilters, setShowDateFilters] = useState(false);
+
+  // Update URL when filters change
+  const updateURL = (updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === "" || value === "all") {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  // Handle filter changes with URL sync
+  const handleStatusChange = (value: FilterStatus) => {
+    setFilterStatus(value);
+    updateURL({ status: value });
+  };
+
+  const handleAssigneeChange = (value: Assignee | "all") => {
+    setFilterAssignee(value);
+    updateURL({ assignee: value });
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    updateURL({ q: value });
+  };
+
+  const handleDateFromChange = (value: string) => {
+    setDateFrom(value);
+    updateURL({ from: value });
+  };
+
+  const handleDateToChange = (value: string) => {
+    setDateTo(value);
+    updateURL({ to: value });
+  };
+
+  const handleClearFilters = () => {
+    setFilterStatus("all");
+    setFilterAssignee("all");
+    setSearchQuery("");
+    setDateFrom("");
+    setDateTo("");
+    router.replace(pathname, { scroll: false });
+  };
 
   useEffect(() => {
     setLastUpdate(Date.now());
     setDraftHealth(getDraftHealth());
   }, [tasks]);
 
+  // Calculate assignee counts for the dropdown
+  const assigneeCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: tasks?.length || 0 };
+    tasks?.forEach((t) => {
+      counts[t.assigned_to] = (counts[t.assigned_to] || 0) + 1;
+    });
+    return counts;
+  }, [tasks]);
+
   const filteredTasks = (tasks ?? []).filter((t) => {
     if (filterStatus !== "all" && t.status !== filterStatus) return false;
     if (filterAssignee !== "all" && t.assigned_to !== filterAssignee) return false;
     if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    
+    // Date range filter
+    if (dateFrom || dateTo) {
+      const taskDate = new Date(t.created_at);
+      const fromDate = dateFrom ? new Date(dateFrom) : null;
+      const toDate = dateTo ? new Date(dateTo + "T23:59:59") : null;
+      
+      if (fromDate && taskDate < fromDate) return false;
+      if (toDate && taskDate > toDate) return false;
+    }
     return true;
   });
 
@@ -346,22 +426,24 @@ export default function TasksPage() {
           type="text"
           placeholder="Search tasks..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="flex-1 min-w-[120px] bg-slate-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/50"
         />
         <select
           value={filterAssignee}
-          onChange={(e) => setFilterAssignee(e.target.value as Assignee | "all")}
+          onChange={(e) => handleAssigneeChange(e.target.value as Assignee | "all")}
           className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none"
         >
-          <option value="all">All Agents</option>
+          <option value="all">All ({assigneeCounts.all || 0})</option>
           {ASSIGNEE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>
+              {opt.label} ({assigneeCounts[opt.value] || 0})
+            </option>
           ))}
         </select>
         <select
           value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
+          onChange={(e) => handleStatusChange(e.target.value as FilterStatus)}
           className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none"
         >
           <option value="all">All Status</option>
@@ -369,8 +451,40 @@ export default function TasksPage() {
             <option key={col.key} value={col.key}>{col.label}</option>
           ))}
         </select>
+        
+        {/* Date Filter Toggle */}
         <button
-          onClick={() => { setFilterStatus("all"); setFilterAssignee("all"); setSearchQuery(""); }}
+          onClick={() => setShowDateFilters(!showDateFilters)}
+          className={`px-2 py-1.5 text-[10px] rounded-lg border transition ${
+            showDateFilters || dateFrom || dateTo
+              ? "bg-cyan-500/20 border-cyan-400/50 text-cyan-300"
+              : "bg-slate-800/50 border-white/10 text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          📅 Dates
+        </button>
+
+        {/* Date Range Inputs - collapsible */}
+        {showDateFilters && (
+          <div className="flex items-center gap-1 w-full md:w-auto">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => handleDateFromChange(e.target.value)}
+              className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-400/50"
+            />
+            <span className="text-slate-500 text-xs">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => handleDateToChange(e.target.value)}
+              className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-400/50"
+            />
+          </div>
+        )}
+
+        <button
+          onClick={handleClearFilters}
           className="px-2 py-1 text-[10px] text-slate-400 hover:text-slate-200 transition"
         >
           Clear

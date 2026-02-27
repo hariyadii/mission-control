@@ -2,6 +2,34 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+// Visual consistency components (matching homepage)
+function FreshnessIndicator({ lastUpdate }: { lastUpdate: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = now - lastUpdate;
+  const isStale = diff > 60000;
+  return (
+    <span className={`text-[10px] ${isStale ? "text-amber-400" : "text-emerald-400"}`}>
+      {isStale ? "⚠" : "●"} {diff > 3600000 ? `${Math.floor(diff/3600000)}h` : diff > 60000 ? `${Math.floor(diff/60000)}m` : "now"}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; color: string; bg: string }> = {
+    ok: { label: "OK", color: "text-emerald-300", bg: "bg-emerald-500/20" },
+    warning: { label: "WARN", color: "text-amber-300", bg: "bg-amber-500/20" },
+    critical: { label: "CRIT", color: "text-rose-300", bg: "bg-rose-500/20" },
+    enabled: { label: "ON", color: "text-emerald-300", bg: "bg-emerald-500/20" },
+    disabled: { label: "OFF", color: "text-slate-400", bg: "bg-slate-500/20" },
+  };
+  const c = config[status] || { label: status.slice(0, 6).toUpperCase(), color: "text-slate-300", bg: "bg-slate-500/20" };
+  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${c.color} ${c.bg}`}>{c.label}</span>;
+}
+
 type Policy = {
   killSwitch: boolean;
   allowHighRiskExternalActions: boolean;
@@ -20,8 +48,16 @@ type WorkflowHealth = {
   contractVersion: string;
   targetAlertsTo: string;
   doneLast24h: number;
+  done_total: number;
+  done_verified_pass: number;
+  done_with_fail_validation: number;
   medianExecutionDurationMs: number;
   blockedRatio: number;
+  severity?: "none" | "warning" | "critical";
+  sustainedAlerts?: number;
+  blockedByAssignee?: Record<string, number>;
+  oldestBacklogAgeMinutes?: number;
+  consecutiveCronErrorsByJob?: Record<string, number>;
   alerts: string[];
 };
 
@@ -35,14 +71,17 @@ type ControlState = {
 const LOOP_NAMES = [
   "sam-mission-suggester-3h",
   "alex-guardrail-20m",
+  "alex-backlog-kicker-10m",
   "sam-worker-15m",
   "lyra-capital-suggester-3h",
   "lyra-capital-worker-30m",
+  "evidence-sweeper-hourly",
 ];
 
 export default function ControlPage() {
   const [data, setData] = useState<ControlState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
 
   const refresh = async () => {
     const [controlRes, autonomyRes] = await Promise.all([
@@ -62,6 +101,7 @@ export default function ControlPage() {
       cronJobs: json.cron,
       workflowHealth: autonomy?.workflowHealth,
     });
+    setLastUpdate(Date.now());
   };
 
   useEffect(() => {
@@ -70,165 +110,119 @@ export default function ControlPage() {
     return () => clearInterval(id);
   }, []);
 
-  const loopJobs = useMemo(() => {
-    const jobs = data?.cronJobs?.jobs ?? [];
-    return LOOP_NAMES.map((name) => jobs.find((j) => j.name === name)).filter(Boolean) as CronJob[];
-  }, [data]);
+  const health = data?.workflowHealth;
+  const healthStatus = health?.severity || "none";
 
-  const post = async (body: Record<string, unknown>) => {
-    setSaving(true);
-    try {
-      await fetch("/api/control", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      await refresh();
-    } finally {
-      setSaving(false);
-    }
+  const formatDuration = (ms: number) => {
+    if (!ms) return "—";
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
   };
 
-  const policy = data?.policy;
-
   return (
-    <div className="space-y-6">
-      <header className="page-header">
+    <div className="space-y-3">
+      {/* HEADER - Consistent with homepage */}
+      <header className="flex items-center justify-between">
         <div>
-          <h1 className="page-title">Autonomy Control Center</h1>
-          <p className="page-subtitle">Pause/resume loops, run jobs, and manage risk policy.</p>
+          <h1 className="text-xl font-semibold text-slate-100">Control</h1>
+          <p className="text-xs text-slate-400">Kill switch & policy</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FreshnessIndicator lastUpdate={lastUpdate} />
+          <StatusBadge status={healthStatus} />
         </div>
       </header>
 
-      <section className="panel-glass p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="m-0 text-xs uppercase tracking-[0.18em] text-slate-400">Global Kill Switch</p>
-            <p className="m-0 mt-1 text-sm text-slate-300">{policy?.killSwitch ? "ON (loops disabled)" : "OFF (loops enabled)"}</p>
-          </div>
-          <button
-            onClick={() => void post({ action: "killSwitch", enabled: !policy?.killSwitch })}
-            className={policy?.killSwitch ? "btn-danger" : "btn-primary"}
-            disabled={saving}
-          >
-            {policy?.killSwitch ? "Disable Kill Switch" : "Enable Kill Switch"}
-          </button>
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="panel-glass p-3">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500">Kill Switch</p>
+          <p className={`text-lg font-semibold mt-1 ${data?.policy?.killSwitch ? "text-rose-400" : "text-emerald-400"}`}>
+            {data?.policy?.killSwitch ? "ON" : "OFF"}
+          </p>
         </div>
-      </section>
+        <div className="panel-glass p-3">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500">X Actions Today</p>
+          <p className="text-lg font-semibold text-slate-100 mt-1">
+            {data?.externalActionsToday ?? "—"} / {data?.policy?.external?.maxActionsPerDay ?? "—"}
+          </p>
+        </div>
+        <div className="panel-glass p-3">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500">Capital Mode</p>
+          <p className="text-lg font-semibold text-slate-100 mt-1 uppercase">
+            {data?.policy?.capitalLane?.mode ?? "—"}
+          </p>
+        </div>
+        <div className="panel-glass p-3">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500">Health</p>
+          <p className={`text-lg font-semibold mt-1 ${healthStatus === "none" ? "text-emerald-400" : healthStatus === "warning" ? "text-amber-400" : "text-rose-400"}`}>
+            {healthStatus.toUpperCase()}
+          </p>
+        </div>
+      </div>
 
-      <section className="grid gap-3 lg:grid-cols-3">
-        {loopJobs.map((job) => (
-          <article key={job.id} className="panel-glass p-4">
-            <p className="m-0 text-sm font-semibold text-slate-100">{job.name}</p>
-            <p className="m-0 mt-1 text-xs text-slate-400">
-              Status: {job.enabled ? "Active" : "Paused"} {job.state?.lastStatus ? `• last ${job.state.lastStatus}` : ""}
-            </p>
-            <div className="mt-3 flex gap-2">
-              <button className="btn-secondary px-3 py-1.5" onClick={() => void post({ action: "runJob", jobId: job.id })}>
-                Run Now
-              </button>
-              {job.enabled ? (
-                <button className="btn-danger px-3 py-1.5" onClick={() => void post({ action: "disableJob", jobId: job.id })}>
-                  Pause
-                </button>
-              ) : (
-                <button className="btn-primary px-3 py-1.5" onClick={() => void post({ action: "enableJob", jobId: job.id })}>
-                  Resume
-                </button>
-              )}
+      {/* Workflow Health Details */}
+      {health && (
+        <section className="panel-glass p-3">
+          <h2 className="text-xs font-semibold text-slate-300 mb-2">Workflow Health</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div>
+              <p className="text-slate-500">Done (24h)</p>
+              <p className="text-slate-200">{health.doneLast24h}</p>
             </div>
-          </article>
-        ))}
-      </section>
-
-      <section className="panel-glass p-6">
-        <h2 className="m-0 text-lg font-semibold text-slate-100">Workflow Health (v2)</h2>
-        <p className="m-0 mt-1 text-sm text-slate-400">Alerts route: {data?.workflowHealth?.targetAlertsTo ?? "alex"}</p>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="panel-soft p-3">
-            <p className="m-0 text-xs uppercase tracking-wide text-slate-400">Done / 24h</p>
-            <p className="m-0 mt-1 text-xl font-semibold text-slate-100">{data?.workflowHealth?.doneLast24h ?? 0}</p>
+            <div>
+              <p className="text-slate-500">Total Done</p>
+              <p className="text-slate-200">{health.done_total}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Verified Pass</p>
+              <p className="text-emerald-400">{health.done_verified_pass}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Median Duration</p>
+              <p className="text-slate-200">{formatDuration(health.medianExecutionDurationMs)}</p>
+            </div>
           </div>
-          <div className="panel-soft p-3">
-            <p className="m-0 text-xs uppercase tracking-wide text-slate-400">Median Cycle</p>
-            <p className="m-0 mt-1 text-xl font-semibold text-slate-100">
-              {data?.workflowHealth?.medianExecutionDurationMs ? `${Math.round((data.workflowHealth.medianExecutionDurationMs || 0) / 1000)}s` : "0s"}
-            </p>
-          </div>
-          <div className="panel-soft p-3">
-            <p className="m-0 text-xs uppercase tracking-wide text-slate-400">Blocked Ratio</p>
-            <p className="m-0 mt-1 text-xl font-semibold text-slate-100">
-              {data?.workflowHealth ? `${(data.workflowHealth.blockedRatio * 100).toFixed(1)}%` : "0.0%"}
-            </p>
-          </div>
-        </div>
+          {health.alerts && health.alerts.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <p className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">Alerts</p>
+              {health.alerts.slice(0, 3).map((alert, i) => (
+                <p key={i} className="text-xs text-amber-400">• {alert}</p>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
-        <div className="mt-3 rounded-lg border border-white/10 bg-slate-900/40 p-3">
-          <p className="m-0 text-xs uppercase tracking-wide text-slate-400">Active Alerts</p>
-          {(data?.workflowHealth?.alerts?.length ?? 0) > 0 ? (
-            <ul className="mt-2 list-disc pl-5 text-sm text-amber-300">
-              {data?.workflowHealth?.alerts?.map((a) => <li key={a}>{a}</li>)}
-            </ul>
-          ) : (
-            <p className="m-0 mt-2 text-sm text-emerald-300">No active workflow alerts.</p>
+      {/* Cron Jobs */}
+      <section className="panel-glass p-3">
+        <h2 className="text-xs font-semibold text-slate-300 mb-2">Cron Jobs</h2>
+        <div className="space-y-1 max-h-[200px] overflow-y-auto">
+          {data?.cronJobs?.jobs?.map((job) => (
+            <div key={job.id} className="flex items-center justify-between px-2 py-1.5 text-xs panel-soft">
+              <span className="text-slate-300 truncate max-w-[180px]" title={job.id}>{job.id}</span>
+              <StatusBadge status={job.enabled ? "enabled" : "disabled"} />
+            </div>
+          )) || (
+            <p className="text-xs text-slate-500 text-center py-3">Loading...</p>
           )}
         </div>
       </section>
 
-      <section className="panel-glass p-6">
-        <h2 className="m-0 text-lg font-semibold text-slate-100">Risk & Capital Policy</h2>
-        <p className="m-0 mt-1 text-sm text-slate-400">External actions today: {data?.externalActionsToday ?? "..."}</p>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="panel-soft flex items-center justify-between p-3 text-sm text-slate-200">
-            <span>Allow high-risk external actions</span>
-            <input
-              type="checkbox"
-              checked={policy?.allowHighRiskExternalActions ?? false}
-              onChange={(e) =>
-                void post({ action: "setPolicy", patch: { allowHighRiskExternalActions: e.target.checked } })
-              }
-            />
-          </label>
-
-          <label className="panel-soft flex items-center justify-between p-3 text-sm text-slate-200">
-            <span>Max external actions/day</span>
-            <input
-              type="number"
-              className="input-glass w-24"
-              value={policy?.external.maxActionsPerDay ?? 100}
-              onChange={(e) =>
-                void post({ action: "setPolicy", patch: { external: { maxActionsPerDay: Number(e.target.value), xMode: policy?.external.xMode ?? "browse" } } })
-              }
-            />
-          </label>
-
-          <label className="panel-soft flex items-center justify-between p-3 text-sm text-slate-200">
-            <span>X mode</span>
-            <select
-              className="input-glass w-28"
-              value={policy?.external.xMode ?? "browse"}
-              onChange={(e) =>
-                void post({ action: "setPolicy", patch: { external: { maxActionsPerDay: policy?.external.maxActionsPerDay ?? 100, xMode: e.target.value } } })
-              }
-            >
-              <option value="browse">browse</option>
-              <option value="post">post</option>
-            </select>
-          </label>
-
-          <label className="panel-soft flex items-center justify-between p-3 text-sm text-slate-200">
-            <span>Capital lane mode</span>
-            <select
-              className="input-glass w-28"
-              value={policy?.capitalLane.mode ?? "paper"}
-              onChange={(e) => void post({ action: "setPolicy", patch: { capitalLane: { mode: e.target.value } } })}
-            >
-              <option value="paper">paper</option>
-              <option value="live">live</option>
-            </select>
-          </label>
+      {/* Policy Summary */}
+      <section className="panel-glass p-3">
+        <h2 className="text-xs font-semibold text-slate-300 mb-2">Policy</h2>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-slate-500">High Risk Actions</span>
+            <span className={data?.policy?.allowHighRiskExternalActions ? "text-rose-400" : "text-emerald-400"}>
+              {data?.policy?.allowHighRiskExternalActions ? "Allowed" : "Blocked"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">X Mode</span>
+            <span className="text-slate-300 uppercase">{data?.policy?.external?.xMode ?? "—"}</span>
+          </div>
         </div>
       </section>
     </div>

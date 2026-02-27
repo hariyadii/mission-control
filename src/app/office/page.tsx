@@ -1,9 +1,36 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
-type DeskCode = "alex" | "sam" | "lyra";
+// Visual consistency components (matching homepage)
+function FreshnessIndicator({ lastUpdate }: { lastUpdate: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = now - lastUpdate;
+  const isStale = diff > 60000;
+  return (
+    <span className={`text-[10px] ${isStale ? "text-amber-400" : "text-emerald-400"}`}>
+      {isStale ? "⚠" : "●"} {diff > 3600000 ? `${Math.floor(diff/3600000)}h` : diff > 60000 ? `${Math.floor(diff/60000)}m` : "now"}
+    </span>
+  );
+}
+
+function AgentBadge({ agent }: { agent: string }) {
+  const config: Record<string, { label: string; color: string; bg: string }> = {
+    sam: { label: "SAM", color: "text-cyan-300", bg: "bg-cyan-500/20" },
+    lyra: { label: "LYRA", color: "text-violet-300", bg: "bg-violet-500/20" },
+    alex: { label: "ALEX", color: "text-amber-300", bg: "bg-amber-500/20" },
+    nova: { label: "NOVA", color: "text-rose-300", bg: "bg-rose-500/20" },
+  };
+  const c = config[agent?.toLowerCase()] || { label: agent?.slice(0, 4).toUpperCase() || "—", color: "text-slate-300", bg: "bg-slate-500/20" };
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${c.color} ${c.bg}`}>{c.label}</span>;
+}
+
+type DeskCode = "alex" | "sam" | "lyra" | "nova";
 
 const desks = [
   {
@@ -11,21 +38,28 @@ const desks = [
     name: "Alex",
     channel: "Telegram",
     task: "Coordinating tasks, routing work, and memory alignment",
-    accent: "alex" as const,
+    accent: "amber" as const,
   },
   {
     code: "sam" as DeskCode,
     name: "Sam",
     channel: "Discord",
     task: "Executing delegated workflows and operations lane automation",
-    accent: "sam" as const,
+    accent: "cyan" as const,
   },
   {
     code: "lyra" as DeskCode,
     name: "Lyra",
     channel: "Discord (pending bot)",
     task: "Running capital lane research, paper trade signals, and strategy compounding",
-    accent: "lyra" as const,
+    accent: "violet" as const,
+  },
+  {
+    code: "nova" as DeskCode,
+    name: "Nova",
+    channel: "Headless Browser",
+    task: "UI/UX lane: improve Mission Control layout, readability, and workflow ergonomics",
+    accent: "rose" as const,
   },
 ];
 
@@ -52,103 +86,109 @@ function DeskCard({ desk }: { desk: (typeof desks)[0] }) {
       setTimeout(() => {
         setSubmitted(false);
         setOrdersOpen(false);
-      }, 1400);
+      }, 1500);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const gradient =
-    desk.accent === "alex"
-      ? "from-[rgba(109,91,255,0.2)] to-[rgba(138,77,255,0.13)]"
-      : desk.accent === "lyra"
-        ? "from-[rgba(244,114,182,0.2)] to-[rgba(168,85,247,0.13)]"
-        : "from-[rgba(18,207,208,0.2)] to-[rgba(14,165,198,0.13)]";
+  const accentColors: Record<string, { border: string; glow: string; text: string }> = {
+    amber: { border: "border-amber-500/30", glow: "shadow-amber-500/20", text: "text-amber-400" },
+    cyan: { border: "border-cyan-500/30", glow: "shadow-cyan-500/20", text: "text-cyan-400" },
+    violet: { border: "border-violet-500/30", glow: "shadow-violet-500/20", text: "text-violet-400" },
+    rose: { border: "border-rose-500/30", glow: "shadow-rose-500/20", text: "text-rose-400" },
+  };
+  const colors = accentColors[desk.accent];
 
   return (
-    <article className={`panel-glass w-full bg-gradient-to-br ${gradient} p-5`}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="m-0 text-lg font-semibold text-slate-100">{desk.name}</p>
-          <p className="m-0 mt-1 text-xs uppercase tracking-wide text-slate-300">{desk.channel}</p>
+    <div className={`panel-glass p-4 border ${colors.border} shadow-lg ${colors.glow}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <AgentBadge agent={desk.code} />
+          <span className="text-sm font-semibold text-slate-100">{desk.name}</span>
         </div>
-        <span className={`badge ${desk.accent === "alex" ? "badge-alex" : "badge-sam"}`}>Active</span>
+        <span className="text-[10px] text-slate-500">{desk.channel}</span>
       </div>
-
-      <p className="panel-soft mt-3 p-3 text-xs leading-relaxed text-slate-300">{desk.task}</p>
-
-      <button onClick={() => setOrdersOpen(!ordersOpen)} className="btn-primary mt-4 w-full">
-        {ordersOpen ? "Close Orders" : "Give Orders"}
-      </button>
-
-      {ordersOpen && (
-        <div className="mt-3 space-y-2.5">
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">Assign To</p>
-            <div className="grid grid-cols-3 gap-2">
-              {(["alex", "sam", "lyra"] as DeskCode[]).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setAssignee(v)}
-                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                    assignee === v
-                      ? "border-violet-300/45 bg-violet-500/25 text-violet-100"
-                      : "border-white/15 bg-slate-800/65 text-slate-300"
-                  }`}
-                >
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <textarea
+      <p className="text-xs text-slate-400 mb-3">{desk.task}</p>
+      
+      {!ordersOpen ? (
+        <button
+          onClick={() => setOrdersOpen(true)}
+          className="w-full py-2 text-xs font-medium text-slate-300 border border-white/10 rounded-lg hover:bg-slate-800/50 transition"
+        >
+          + Create Work Order
+        </button>
+      ) : (
+        <div className="space-y-2">
+          <input
+            type="text"
             value={orderText}
             onChange={(e) => setOrderText(e.target.value)}
-            placeholder={`What should ${assignee.charAt(0).toUpperCase() + assignee.slice(1)} work on?`}
-            rows={3}
-            className="input-glass resize-y"
+            placeholder="Describe the work..."
+            className="w-full bg-slate-800/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/50"
+            autoFocus
           />
-
-          <button onClick={() => void handleSubmit()} disabled={submitting || !orderText.trim()} className="btn-primary w-full">
-            {submitted ? "Queued" : submitting ? "Sending..." : "Assign Task"}
-          </button>
+          <div className="flex gap-2">
+            <select
+              value={assignee}
+              onChange={(e) => setAssignee(e.target.value as DeskCode)}
+              className="flex-1 bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none"
+            >
+              {desks.map((d) => (
+                <option key={d.code} value={d.code}>{d.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !orderText.trim()}
+              className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-cyan-500 to-violet-500 text-white rounded-lg disabled:opacity-50 transition"
+            >
+              {submitting ? "..." : submitted ? "✓" : "Submit"}
+            </button>
+            <button
+              onClick={() => setOrdersOpen(false)}
+              className="px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
-    </article>
+    </div>
   );
 }
 
 export default function OfficePage() {
+  const [lastUpdate] = useState(Date.now());
+
   return (
-    <div className="space-y-6">
-      <header className="page-header">
+    <div className="space-y-3">
+      {/* HEADER - Consistent with homepage */}
+      <header className="flex items-center justify-between">
         <div>
-          <h1 className="page-title">Office</h1>
-          <p className="page-subtitle">Issue work orders to active agents from the virtual floor.</p>
+          <h1 className="text-xl font-semibold text-slate-100">Office</h1>
+          <p className="text-xs text-slate-400">Issue work orders</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FreshnessIndicator lastUpdate={lastUpdate} />
         </div>
       </header>
 
-      <section className="panel-glass p-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {desks.map((desk) => (
-            <DeskCard key={desk.code} desk={desk} />
-          ))}
-        </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-3">
-        {[
-          { label: "Agents Online", value: "3 / 3" },
-          { label: "Channels", value: "Telegram + Discord" },
-          { label: "Office Status", value: "Open" },
-        ].map((stat) => (
-          <article key={stat.label} className="panel-glass p-4">
-            <p className="m-0 text-xs uppercase tracking-wide text-slate-400">{stat.label}</p>
-            <p className="m-0 mt-1.5 text-base font-semibold text-slate-100">{stat.value}</p>
-          </article>
+      {/* Desks Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {desks.map((desk) => (
+          <DeskCard key={desk.code} desk={desk} />
         ))}
+      </div>
+
+      {/* Instructions */}
+      <section className="panel-glass p-3">
+        <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">How it works</p>
+        <ul className="text-xs text-slate-400 space-y-1">
+          <li>• Select an agent and describe the work needed</li>
+          <li>• Task goes to backlog after submission</li>
+          <li>• Agent picks up task on next worker cycle</li>
+        </ul>
       </section>
     </div>
   );

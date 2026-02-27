@@ -1,30 +1,33 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import { Id } from "../../../convex/_generated/dataModel";
 
-type Assignee = "me" | "alex" | "sam" | "lyra" | "nova" | "agent";
-type TaskStatus = "suggested" | "backlog" | "in_progress" | "blocked" | "done";
-type ValidationStatus = "pending" | "pass" | "fail";
+// Visual consistency components (matching homepage)
+function FreshnessIndicator({ lastUpdate }: { lastUpdate: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = now - lastUpdate;
+  const isStale = diff > 60000;
+  return (
+    <span className={`text-[10px] ${isStale ? "text-amber-400" : "text-emerald-400"}`}>
+      {isStale ? "⚠" : "●"} {diff > 3600000 ? `${Math.floor(diff/3600000)}h` : diff > 60000 ? `${Math.floor(diff/60000)}m` : "now"}
+    </span>
+  );
+}
 
-type Task = {
-  _id: Id<"tasks">;
-  _creationTime?: number;
-  title: string;
-  description?: string;
-  status: TaskStatus;
-  assigned_to: Assignee;
-  created_at: string;
-  updated_at?: string;
-  owner?: Assignee;
-  lease_until?: string;
-  heartbeat_at?: string;
-  validation_status?: ValidationStatus;
-  artifact_path?: string;
-  changelog_path?: string;
-};
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; color: string; bg: string }> = {
+    success: { label: "OK", color: "text-emerald-300", bg: "bg-emerald-500/20" },
+    failed: { label: "FAIL", color: "text-rose-300", bg: "bg-rose-500/20" },
+    pending: { label: "PEND", color: "text-amber-300", bg: "bg-amber-500/20" },
+  };
+  const c = config[status?.toLowerCase()] || { label: status?.slice(0, 6).toUpperCase() || "—", color: "text-slate-300", bg: "bg-slate-500/20" };
+  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${c.color} ${c.bg}`}>{c.label}</span>;
+}
 
+type Assignee = "me" | "alex" | "sam" | "lyra" | "nova" | "ops" | "agent";
 type AuditEntry = {
   id: string;
   timestamp: string;
@@ -38,459 +41,155 @@ type AuditEntry = {
 
 type DatePreset = "all" | "today" | "week" | "month";
 
-const AGENT_OPTIONS: { value: Assignee | "all"; label: string }[] = [
-  { value: "all", label: "All Agents" },
-  { value: "alex", label: "Alex" },
-  { value: "sam", label: "Sam" },
-  { value: "lyra", label: "Lyra" },
-  { value: "nova", label: "Nova" },
-  { value: "agent", label: "Agent" },
+const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "today", label: "Today" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
 ];
-
-const STATUS_OPTIONS: { value: "all" | "success" | "failed" | "pending"; label: string }[] = [
-  { value: "all", label: "All Statuses" },
-  { value: "success", label: "Success" },
-  { value: "failed", label: "Failed" },
-  { value: "pending", label: "Pending" },
-];
-
-const DATE_PRESETS: { value: DatePreset; label: string; icon: string }[] = [
-  { value: "all", label: "All Time", icon: "◫" },
-  { value: "today", label: "Today", icon: "◷" },
-  { value: "week", label: "This Week", icon: "◫" },
-  { value: "month", label: "This Month", icon: "◎" },
-];
-
-function assigneeLabel(value: string) {
-  const v = value.toLowerCase();
-  if (v === "alex") return "Alex";
-  if (v === "sam") return "Sam";
-  if (v === "lyra") return "Lyra";
-  if (v === "nova") return "Nova";
-  if (v === "agent") return "Agent";
-  if (v === "me") return "Me";
-  return value;
-}
-
-function statusBadge(status: "success" | "failed" | "pending") {
-  if (status === "success") {
-    return <span className="badge badge-success">✓ Success</span>;
-  }
-  if (status === "failed") {
-    return <span className="badge badge-failed">✗ Failed</span>;
-  }
-  return <span className="badge badge-pending">◔ Pending</span>;
-}
-
-function formatTimestamp(timestamp: string) {
-  const date = new Date(timestamp);
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function getDateRange(preset: DatePreset): { start: Date; end: Date } {
-  const now = new Date();
-  const start = new Date(now);
-  const end = new Date(now);
-
-  if (preset === "today") {
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-  } else if (preset === "week") {
-    start.setDate(now.getDate() - now.getDay());
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-  } else if (preset === "month") {
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-  } else {
-    // All time - far past to far future
-    start.setFullYear(2020, 0, 1);
-    end.setFullYear(2030, 11, 31);
-  }
-
-  return { start, end };
-}
-
-function isInDateRange(timestamp: string, preset: DatePreset): boolean {
-  const { start, end } = getDateRange(preset);
-  const date = new Date(timestamp);
-  return date >= start && date <= end;
-}
-
-// Custom badge styles for audit statuses
-const statusBadgeStyles = {
-  success: "border-emerald-300/45 bg-emerald-500/20 text-emerald-200",
-  failed: "border-rose-300/45 bg-rose-500/20 text-rose-200",
-  pending: "border-amber-300/45 bg-amber-500/20 text-amber-200",
-};
 
 export default function AuditPage() {
-  const tasks = useQuery(api.tasks.list);
-  const [filteredEntries, setFilteredEntries] = useState<AuditEntry[]>([]);
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [agentFilter, setAgentFilter] = useState<Assignee | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "failed" | "pending">("all");
-  const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
 
-  // Build audit entries from task history
+  const fetchAudit = async () => {
+    try {
+      const res = await fetch("/api/audit");
+      if (res.ok) {
+        const data = await res.json();
+        setEntries(data.entries || []);
+        setLastUpdate(Date.now());
+      }
+    } catch { /* ignore */ }
+  };
+
   useEffect(() => {
-    if (!tasks) return;
+    void fetchAudit();
+    const id = setInterval(fetchAudit, 30000);
+    return () => clearInterval(id);
+  }, []);
 
-    const entries: AuditEntry[] = [];
-
-    // Build audit trail from tasks
-    tasks.forEach((task) => {
-      const taskId = String(task._id);
-      const agent = task.assigned_to;
-
-      // Entry: Task Created
-      entries.push({
-        id: `${taskId}-created`,
-        timestamp: task.created_at,
-        agent: agent,
-        action: "Task Created",
-        target: task.title.substring(0, 50) + (task.title.length > 50 ? "..." : ""),
-        status: "success",
-        details: `Created in ${task.status} queue`,
-        canUndo: false,
-      });
-
-      // Entry: Task Status (if not suggested/created)
-      if (task.status === "in_progress" && task.heartbeat_at) {
-        entries.push({
-          id: `${taskId}-claimed`,
-          timestamp: task.heartbeat_at,
-          agent: task.owner || agent,
-          action: "Task Claimed",
-          target: task.title.substring(0, 50) + (task.title.length > 50 ? "..." : ""),
-          status: "success",
-          details: `Lease until ${task.lease_until ? new Date(task.lease_until).toLocaleString() : "N/A"}`,
-          canUndo: true,
-        });
-      }
-
-      // Entry: Validation Status
-      if (task.validation_status) {
-        entries.push({
-          id: `${taskId}-validation`,
-          timestamp: task.updated_at || task.created_at,
-          agent: agent,
-          action: "Validation",
-          target: task.title.substring(0, 50) + (task.title.length > 50 ? "..." : ""),
-          status: task.validation_status === "pass" ? "success" : task.validation_status === "fail" ? "failed" : "pending",
-          details: `Validation: ${task.validation_status}`,
-          canUndo: task.validation_status === "fail",
-        });
-      }
-
-      // Entry: Completed
-      if (task.status === "done") {
-        entries.push({
-          id: `${taskId}-completed`,
-          timestamp: task.updated_at || task.created_at,
-          agent: agent,
-          action: "Task Completed",
-          target: task.title.substring(0, 50) + (task.title.length > 50 ? "..." : ""),
-          status: task.validation_status === "pass" ? "success" : task.validation_status === "fail" ? "failed" : "pending",
-          details: task.artifact_path ? `Artifact: ${task.artifact_path.split("/").pop()}` : undefined,
-          canUndo: true,
-        });
-      }
-
-      // Entry: Blocked
-      if (task.status === "blocked") {
-        entries.push({
-          id: `${taskId}-blocked`,
-          timestamp: task.updated_at || task.created_at,
-          agent: agent,
-          action: "Task Blocked",
-          target: task.title.substring(0, 50) + (task.title.length > 50 ? "..." : ""),
-          status: "failed",
-          details: task.description?.includes("stale_lease") ? "Stale lease requeued" : "Blocked manually",
-          canUndo: true,
-        });
-      }
-    });
-
-    // Sort by timestamp descending (newest first)
-    entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    setFilteredEntries(entries);
-  }, [tasks]);
-
-  // Apply filters
-  const displayedEntries = filteredEntries.filter((entry) => {
-    // Date filter
-    if (datePreset !== "all" && !isInDateRange(entry.timestamp, datePreset)) {
-      return false;
+  const filteredEntries = entries.filter((e) => {
+    if (datePreset === "today") {
+      const today = new Date().toISOString().slice(0, 10);
+      if (!e.timestamp.startsWith(today)) return false;
+    } else if (datePreset === "week") {
+      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      if (new Date(e.timestamp).getTime() < weekAgo) return false;
+    } else if (datePreset === "month") {
+      const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      if (new Date(e.timestamp).getTime() < monthAgo) return false;
     }
-
-    // Agent filter
-    if (agentFilter !== "all" && entry.agent !== agentFilter) {
-      return false;
-    }
-
-    // Status filter
-    if (statusFilter !== "all" && entry.status !== statusFilter) {
-      return false;
-    }
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        entry.target.toLowerCase().includes(query) ||
-        entry.action.toLowerCase().includes(query) ||
-        entry.agent.toLowerCase().includes(query)
-      );
-    }
-
+    if (agentFilter !== "all" && e.agent !== agentFilter) return false;
+    if (statusFilter !== "all" && e.status !== statusFilter) return false;
+    if (searchQuery && !e.action.toLowerCase().includes(searchQuery.toLowerCase()) && !e.target.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
-  // Stats
-  const totalEntries = filteredEntries.length;
-  const successCount = filteredEntries.filter((e) => e.status === "success").length;
-  const failedCount = filteredEntries.filter((e) => e.status === "failed").length;
-  const pendingCount = filteredEntries.filter((e) => e.status === "pending").length;
-
-  // Calculate success rate
-  const successRate = totalEntries > 0 ? Math.round((successCount / totalEntries) * 100) : 0;
+  const successCount = entries.filter(e => e.status === "success").length;
+  const failCount = entries.filter(e => e.status === "failed").length;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto page-enter">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="text-3xl">◫</span>
-          <h1 className="text-3xl font-bold text-slate-100">Action Audit Trail</h1>
+    <div className="space-y-3">
+      {/* HEADER - Consistent with homepage */}
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-100">Audit</h1>
+          <p className="text-xs text-slate-400">Action history</p>
         </div>
-        <p className="text-slate-400">Track and review all agent actions with undo capability</p>
-      </div>
+        <div className="flex items-center gap-3">
+          <FreshnessIndicator lastUpdate={lastUpdate} />
+        </div>
+      </header>
 
-      {/* Stats Cards - Improved Design */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="panel-soft p-5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/10 rounded-full -mr-10 -mt-10"></div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-lg text-indigo-400">◫</span>
-            <span className="text-sm text-slate-400 font-medium">Total Actions</span>
-          </div>
-          <div className="text-3xl font-bold text-slate-100">{totalEntries}</div>
-          <div className="text-xs text-slate-500 mt-1">{datePreset === "all" ? "All time" : DATE_PRESETS.find(p => p.value === datePreset)?.label}</div>
+      {/* Quick Stats */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="panel-glass p-2 text-center">
+          <p className="text-[9px] uppercase text-slate-500">Total</p>
+          <p className="text-lg font-semibold text-slate-100">{entries.length}</p>
         </div>
-        
-        <div className="panel-soft p-5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full -mr-10 -mt-10"></div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-lg text-emerald-400">✓</span>
-            <span className="text-sm text-slate-400 font-medium">Successful</span>
-          </div>
-          <div className="text-3xl font-bold text-emerald-400">{successCount}</div>
-          <div className="text-xs text-emerald-500/80 mt-1">{successRate}% success rate</div>
+        <div className="panel-glass p-2 text-center">
+          <p className="text-[9px] uppercase text-slate-500">Success</p>
+          <p className="text-lg font-semibold text-emerald-400">{successCount}</p>
         </div>
-        
-        <div className="panel-soft p-5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/10 rounded-full -mr-10 -mt-10"></div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-lg text-rose-400">✗</span>
-            <span className="text-sm text-slate-400 font-medium">Failed</span>
-          </div>
-          <div className="text-3xl font-bold text-rose-400">{failedCount}</div>
-          <div className="text-xs text-rose-500/80 mt-1">
-            {totalEntries > 0 ? Math.round((failedCount / totalEntries) * 100) : 0}% of total
-          </div>
-        </div>
-        
-        <div className="panel-soft p-5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/10 rounded-full -mr-10 -mt-10"></div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-lg text-amber-400">◔</span>
-            <span className="text-sm text-slate-400 font-medium">Pending</span>
-          </div>
-          <div className="text-3xl font-bold text-amber-400">{pendingCount}</div>
-          <div className="text-xs text-amber-500/80 mt-1">Awaiting completion</div>
+        <div className="panel-glass p-2 text-center">
+          <p className="text-[9px] uppercase text-slate-500">Failed</p>
+          <p className="text-lg font-semibold text-rose-400">{failCount}</p>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="panel-soft p-5 mb-6">
-        <div className="flex flex-wrap gap-4">
-          {/* Search */}
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs text-slate-500 mb-2 uppercase tracking-wider">Search</label>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search actions, targets, agents..."
-              className="input-glass"
-            />
-          </div>
-          
-          {/* Date Preset */}
-          <div>
-            <label className="block text-xs text-slate-500 mb-2 uppercase tracking-wider">Time Range</label>
-            <div className="flex gap-1 bg-slate-900/60 p-1 rounded-lg border border-white/10">
-              {DATE_PRESETS.map((preset) => (
-                <button
-                  key={preset.value}
-                  onClick={() => setDatePreset(preset.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    datePreset === preset.value
-                      ? "bg-indigo-500/30 text-indigo-200 border border-indigo-300/30"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Agent Filter */}
-          <div>
-            <label className="block text-xs text-slate-500 mb-2 uppercase tracking-wider">Agent</label>
-            <select
-              value={agentFilter}
-              onChange={(e) => setAgentFilter(e.target.value as Assignee | "all")}
-              className="input-glass min-w-[140px]"
-            >
-              {AGENT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-xs text-slate-500 mb-2 uppercase tracking-wider">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | "success" | "failed" | "pending")}
-              className="input-glass min-w-[140px]"
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+      {/* Filter Bar */}
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 panel-glass">
+        <input
+          type="text"
+          placeholder="Search actions..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="flex-1 min-w-[120px] bg-slate-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/50"
+        />
+        <select
+          value={datePreset}
+          onChange={(e) => setDatePreset(e.target.value as DatePreset)}
+          className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300"
+        >
+          {DATE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+        </select>
+        <select
+          value={agentFilter}
+          onChange={(e) => setAgentFilter(e.target.value as Assignee | "all")}
+          className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300"
+        >
+          <option value="all">All Agents</option>
+          <option value="alex">Alex</option>
+          <option value="sam">Sam</option>
+          <option value="lyra">Lyra</option>
+          <option value="nova">Nova</option>
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+          className="bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300"
+        >
+          <option value="all">All Status</option>
+          <option value="success">Success</option>
+          <option value="failed">Failed</option>
+          <option value="pending">Pending</option>
+        </select>
+        <button
+          onClick={() => { setDatePreset("all"); setAgentFilter("all"); setStatusFilter("all"); setSearchQuery(""); }}
+          className="px-2 py-1 text-[10px] text-slate-400 hover:text-slate-200"
+        >
+          Clear
+        </button>
       </div>
 
-      {/* Active Filters Display */}
-      {(datePreset !== "all" || agentFilter !== "all" || statusFilter !== "all" || searchQuery) && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {searchQuery && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-500/20 border border-indigo-300/30 rounded-md text-xs text-indigo-200">
-              Search: "{searchQuery}" <button onClick={() => setSearchQuery("")} className="hover:text-white">×</button>
-            </span>
+      {/* Audit List */}
+      <div className="panel-glass p-2">
+        <div className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
+          {filteredEntries.length > 0 ? (
+            filteredEntries.slice(0, 50).map((entry) => (
+              <div key={entry.id} className="flex items-center gap-2 px-2 py-1.5 text-xs border-b border-white/5 last:border-0">
+                <span className="text-[9px] text-slate-500 w-16 shrink-0">{new Date(entry.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+                <StatusBadge status={entry.status} />
+                <span className="text-slate-300 flex-1 truncate" title={entry.action}>{entry.action}</span>
+                <span className="text-slate-500 truncate max-w-[100px]" title={entry.target}>{entry.target}</span>
+                <span className="text-[9px] text-cyan-400 uppercase shrink-0">{entry.agent}</span>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-slate-500 text-center py-4">No audit entries</p>
           )}
-          {datePreset !== "all" && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-violet-500/20 border border-violet-300/30 rounded-md text-xs text-violet-200">
-              {DATE_PRESETS.find(p => p.value === datePreset)?.label} <button onClick={() => setDatePreset("all")} className="hover:text-white">×</button>
-            </span>
-          )}
-          {agentFilter !== "all" && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/20 border border-cyan-300/30 rounded-md text-xs text-cyan-200">
-              {AGENT_OPTIONS.find(a => a.value === agentFilter)?.label} <button onClick={() => setAgentFilter("all")} className="hover:text-white">×</button>
-            </span>
-          )}
-          {statusFilter !== "all" && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-500/20 border border-slate-300/30 rounded-md text-xs text-slate-200">
-              {STATUS_OPTIONS.find(s => s.value === statusFilter)?.label} <button onClick={() => setStatusFilter("all")} className="hover:text-white">×</button>
-            </span>
-          )}
-          <button 
-            onClick={() => { setSearchQuery(""); setDatePreset("all"); setAgentFilter("all"); setStatusFilter("all"); }}
-            className="text-xs text-slate-500 hover:text-slate-300 underline"
-          >
-            Clear all
-          </button>
         </div>
-      )}
-
-      {/* Audit Trail Table */}
-      <div className="panel-soft overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/10 bg-slate-900/40">
-                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Time</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Agent</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Action</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Target</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Details</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Undo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedEntries.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-4xl text-slate-600">◫</span>
-                      <p className="text-slate-400">No audit entries found</p>
-                      <p className="text-xs text-slate-500">Try adjusting your filters or date range</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                displayedEntries.map((entry) => (
-                  <tr key={entry.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                    <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">{formatTimestamp(entry.timestamp)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`badge badge-${entry.agent}`}>{assigneeLabel(entry.agent)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-200 font-medium">{entry.action}</td>
-                    <td className="px-4 py-3 text-sm text-slate-300 max-w-[200px] truncate" title={entry.target}>
-                      {entry.target}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`badge ${statusBadgeStyles[entry.status]}`}>
-                        {entry.status === "success" ? "✓ " : entry.status === "failed" ? "✗ " : "◔ "}
-                        {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 max-w-[150px] truncate" title={entry.details}>
-                      {entry.details || "-"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {entry.canUndo ? (
-                        <button className="btn-secondary text-xs">
-                          ↺ Undo
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-600">-</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {filteredEntries.length > 0 && (
+          <p className="text-[9px] text-slate-500 text-center mt-2">
+            Showing {Math.min(50, filteredEntries.length)} of {filteredEntries.length}
+          </p>
+        )}
       </div>
-
-      {displayedEntries.length > 0 && (
-        <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
-          <span>Showing {displayedEntries.length} of {totalEntries} actions</span>
-          <span className="text-xs">
-            {datePreset !== "all" ? `Filtered by ${DATE_PRESETS.find(p => p.value === datePreset)?.label.toLowerCase()}` : "Showing all time"}
-          </span>
-        </div>
-      )}
     </div>
   );
 }

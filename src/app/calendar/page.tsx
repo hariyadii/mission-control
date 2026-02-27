@@ -4,6 +4,31 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 
+// Visual consistency components (matching homepage)
+function FreshnessIndicator({ lastUpdate }: { lastUpdate: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = now - lastUpdate;
+  const isStale = diff > 60000;
+  return (
+    <span className={`text-[10px] ${isStale ? "text-amber-400" : "text-emerald-400"}`}>
+      {isStale ? "⚠" : "●"} {diff > 3600000 ? `${Math.floor(diff/3600000)}h` : diff > 60000 ? `${Math.floor(diff/60000)}m` : "now"}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; color: string; bg: string }> = {
+    active: { label: "ACTIVE", color: "text-emerald-300", bg: "bg-emerald-500/20" },
+    disabled: { label: "OFF", color: "text-slate-400", bg: "bg-slate-500/20" },
+  };
+  const c = config[status?.toLowerCase()] || { label: status?.slice(0, 6).toUpperCase() || "—", color: "text-slate-300", bg: "bg-slate-500/20" };
+  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${c.color} ${c.bg}`}>{c.label}</span>;
+}
+
 type CronJob = {
   id: string;
   name: string;
@@ -22,20 +47,7 @@ type CalendarNote = {
 };
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -58,6 +70,7 @@ export default function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [newNote, setNewNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
 
   const notes = useQuery(api.calendar.listNotes) as CalendarNote[] | undefined;
   const addNote = useMutation(api.calendar.addNote);
@@ -66,41 +79,35 @@ export default function CalendarPage() {
   useEffect(() => {
     fetch("/api/calendar")
       .then((r) => r.json())
-      .then((data) => setJobs(data.jobs ?? []))
+      .then((data) => { setJobs(data.jobs ?? []); setLastUpdate(Date.now()); })
       .catch(() => setJobs([]))
       .finally(() => setLoadingJobs(false));
   }, []);
 
   const prevMonth = () => {
-    if (month === 0) {
-      setMonth(11);
-      setYear((y) => y - 1);
-    } else setMonth((m) => m - 1);
+    if (month === 0) { setMonth(11); setYear(y => y - 1); }
+    else setMonth(m => m - 1);
     setSelectedDay(null);
   };
 
   const nextMonth = () => {
-    if (month === 11) {
-      setMonth(0);
-      setYear((y) => y + 1);
-    } else setMonth((m) => m + 1);
+    if (month === 11) { setMonth(0); setYear(y => y + 1); }
+    else setMonth(m => m + 1);
     setSelectedDay(null);
   };
 
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
   const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDay; i += 1) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   const isToday = (d: number | null) => d !== null && d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-
   const notesForDay = (d: number | null) => {
     if (!d || !notes) return [];
     const key = toDateString(year, month, d);
     return notes.filter((n) => n.date === key);
   };
-
   const hasNotes = (d: number | null) => notesForDay(d).length > 0;
 
   const selectedDateStr = selectedDay ? toDateString(year, month, selectedDay) : null;
@@ -122,61 +129,51 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="page-header">
+    <div className="space-y-3">
+      {/* HEADER - Consistent with homepage */}
+      <header className="flex items-center justify-between">
         <div>
-          <h1 className="page-title">Calendar</h1>
-          <p className="page-subtitle">Track scheduled jobs and attach notes to specific days.</p>
+          <h1 className="text-xl font-semibold text-slate-100">Calendar</h1>
+          <p className="text-xs text-slate-400">Schedule & notes</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FreshnessIndicator lastUpdate={lastUpdate} />
         </div>
       </header>
 
-      <section className="panel-glass max-w-3xl p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <button onClick={prevMonth} className="btn-secondary px-3 py-1.5 text-base">
-            ‹
-          </button>
-          <p className="m-0 text-lg font-semibold text-slate-100">
-            {MONTHS[month]} {year}
-          </p>
-          <button onClick={nextMonth} className="btn-secondary px-3 py-1.5 text-base">
-            ›
-          </button>
+      {/* Calendar Grid */}
+      <section className="panel-glass p-3">
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={prevMonth} className="px-2 py-1 text-slate-400 hover:text-slate-200">‹</button>
+          <p className="text-sm font-semibold text-slate-200">{MONTHS[month]} {year}</p>
+          <button onClick={nextMonth} className="px-2 py-1 text-slate-400 hover:text-slate-200">›</button>
         </div>
 
-        <div className="mb-2 grid grid-cols-7 gap-1.5">
+        <div className="mb-2 grid grid-cols-7 gap-1">
           {DAYS.map((d) => (
-            <div key={d} className="py-1 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
-              {d}
-            </div>
+            <div key={d} className="py-1 text-center text-[9px] font-semibold uppercase text-slate-500">{d}</div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-1.5">
+        <div className="grid grid-cols-7 gap-1">
           {cells.map((d, i) => {
             const selected = selectedDay === d;
             const todayCell = isToday(d);
             return (
               <button
-                key={`${i}-${d}`}
+                key={i}
                 type="button"
-                onClick={() => {
-                  if (d) setSelectedDay(selected ? null : d);
-                }}
-                className={`relative min-h-11 rounded-lg border text-sm transition ${
-                  d === null
-                    ? "cursor-default border-transparent bg-transparent text-transparent"
-                    : todayCell
-                      ? "border-indigo-200/40 bg-indigo-500/40 text-white"
-                      : selected
-                        ? "border-cyan-200/45 bg-cyan-500/25 text-cyan-100"
-                        : "border-white/10 bg-slate-900/55 text-slate-100 hover:border-white/20 hover:bg-slate-800/65"
+                onClick={() => { if (d) setSelectedDay(selected ? null : d); }}
+                className={`relative min-h-8 rounded text-xs transition ${
+                  d === null ? "cursor-default" :
+                  todayCell ? "border border-indigo-400/50 bg-indigo-500/30 text-white" :
+                  selected ? "border border-cyan-400/50 bg-cyan-500/20 text-cyan-100" :
+                  "border border-white/10 bg-slate-900/50 text-slate-300 hover:border-white/20"
                 }`}
               >
-                {d ?? ""}
+                {d}
                 {d && hasNotes(d) && (
-                  <span
-                    className={`absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full ${todayCell ? "bg-white" : "bg-indigo-300"}`}
-                  />
+                  <span className={`absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${todayCell ? "bg-white" : "bg-indigo-400"}`} />
                 )}
               </button>
             );
@@ -184,72 +181,51 @@ export default function CalendarPage() {
         </div>
       </section>
 
+      {/* Selected Day Notes */}
       {selectedDay && (
-        <section className="panel-glass max-w-3xl p-5">
-          <p className="m-0 text-sm font-semibold uppercase tracking-wide text-slate-300">{selectedDateStr}</p>
-
-          {selectedNotes.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {selectedNotes.map((n) => (
-                <div key={n._id} className="panel-soft flex items-start gap-3 p-3">
-                  <p className="m-0 flex-1 text-sm text-slate-200">{n.note}</p>
-                  <button onClick={() => void handleDeleteNote(n._id)} className="btn-danger px-2.5 py-1">
-                    X
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <section className="panel-glass p-3">
+          <p className="text-xs font-semibold text-slate-300 mb-2">{selectedDateStr}</p>
+          <div className="space-y-1 max-h-[120px] overflow-y-auto mb-2">
+            {selectedNotes.map((n) => (
+              <div key={String(n._id)} className="flex items-center gap-2 px-2 py-1 text-xs panel-soft">
+                <span className="flex-1 text-slate-300">{n.note}</span>
+                <button onClick={() => void handleDeleteNote(n._id)} className="text-rose-400 hover:text-rose-300">×</button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
             <input
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleSaveNote();
-              }}
-              placeholder="Add note for this day..."
-              className="input-glass"
+              onKeyDown={(e) => { if (e.key === "Enter") void handleSaveNote(); }}
+              placeholder="Add note..."
+              className="flex-1 bg-slate-800/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none"
             />
-            <button onClick={() => void handleSaveNote()} disabled={saving || !newNote.trim()} className="btn-primary whitespace-nowrap">
-              {saving ? "Saving..." : "Save Note"}
+            <button onClick={() => void handleSaveNote()} disabled={saving || !newNote.trim()} className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-cyan-500 to-violet-500 text-white rounded-lg disabled:opacity-50">
+              {saving ? "..." : "Add"}
             </button>
           </div>
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="m-0 text-lg font-semibold text-slate-100">Scheduled Jobs</h2>
-        {loadingJobs ? (
-          <div className="panel-soft p-4 text-sm text-slate-400">Loading jobs...</div>
-        ) : jobs.length === 0 ? (
-          <div className="panel-soft p-6 text-center text-sm text-slate-400">No cron jobs configured.</div>
-        ) : (
-          <div className="space-y-2.5">
-            {jobs.map((job, i) => (
-              <article key={job.id ?? i} className="panel-glass p-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 shrink-0 text-lg text-slate-300">◴</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="m-0 truncate text-sm font-semibold text-slate-100">{job.name}</p>
-                      <span className={`ml-auto shrink-0 badge ${job.enabled ? "badge-sam" : "badge-legacy"}`}>
-                        {job.enabled ? "Active" : "Disabled"}
-                      </span>
-                    </div>
-                    <p className="m-0 mt-1 font-mono text-xs text-indigo-200">{job.scheduleDesc}</p>
-                    <p className="m-0 mt-0.5 text-xs text-slate-400">{job.payloadKind}</p>
-                    {job.payloadText && (
-                      <p className="m-0 mt-2 line-clamp-2 text-xs leading-relaxed text-slate-400">
-                        {job.payloadText}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+      {/* Scheduled Jobs */}
+      <section className="panel-glass p-3">
+        <h2 className="text-xs font-semibold text-slate-300 mb-2">Scheduled Jobs</h2>
+        <div className="space-y-1 max-h-[200px] overflow-y-auto">
+          {loadingJobs ? (
+            <p className="text-xs text-slate-500 text-center py-2">Loading...</p>
+          ) : jobs.length === 0 ? (
+            <p className="text-xs text-slate-500 text-center py-2">No cron jobs</p>
+          ) : (
+            jobs.slice(0, 8).map((job, i) => (
+              <div key={job.id ?? i} className="flex items-center gap-2 px-2 py-1.5 text-xs panel-soft">
+                <span className="text-slate-300 font-medium truncate flex-1">{job.name}</span>
+                <span className="text-[9px] text-indigo-400 font-mono">{job.scheduleDesc}</span>
+                <StatusBadge status={job.enabled ? "active" : "disabled"} />
+              </div>
+            ))
+          )}
+        </div>
       </section>
     </div>
   );

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import Sidebar from "@/components/Sidebar";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 
 export const metadata: Metadata = {
   title: "Mission Control",
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Sidebar />
             <main className="content-wrap">{children}</main>
           </div>
+          <KeyboardShortcuts />
         </ConvexClientProvider>
       </body>
     </html>
