@@ -156,11 +156,98 @@ function TaskCard({
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
+// ── Inline create form ─────────────────────────────────────────────────────
+
+type CreateFormState = {
+  status: TaskStatus;
+  title: string;
+  assignee: Assignee;
+};
+
+function InlineCreateForm({
+  initialStatus,
+  onSubmit,
+  onCancel,
+}: {
+  initialStatus: TaskStatus;
+  onSubmit: (title: string, assignee: Assignee, status: TaskStatus) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [assignee, setAssignee] = useState<Assignee>(() => inferAssignee(""));
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleTitleChange = (v: string) => {
+    setTitle(v);
+    setAssignee(inferAssignee(v));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(trimmed, assignee, initialStatus);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="panel-soft p-2 space-y-1.5"
+      role="dialog"
+      aria-label={`Create task in ${initialStatus}`}
+    >
+      <input
+        autoFocus
+        type="text"
+        value={title}
+        onChange={(e) => handleTitleChange(e.target.value)}
+        placeholder="Task title…"
+        className="input-glass text-xs py-1"
+        aria-label="Task title"
+        required
+        maxLength={200}
+      />
+      <div className="flex items-center gap-1.5">
+        <select
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value as Assignee)}
+          className="flex-1 bg-slate-900/60 border border-white/8 rounded px-1.5 py-1 text-[9px] text-slate-400 focus:outline-none focus:border-indigo-400/50"
+          aria-label="Assign to"
+        >
+          {ASSIGNEE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={submitting || !title.trim()}
+          className="btn-primary text-[10px] px-2 py-1 disabled:opacity-50"
+          aria-label="Add task"
+        >
+          {submitting ? "…" : "Add"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn-ghost text-[10px] px-2 py-1"
+          aria-label="Cancel"
+        >
+          ✕
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function TasksPage() {
   const tasks        = useQuery(api.tasks.list);
   const createTask   = useMutation(api.tasks.create);
   const updateStatus = useMutation(api.tasks.updateStatus);
-  const updateTask   = useMutation(api.tasks.updateTask);
   const removeTask   = useMutation(api.tasks.remove);
   const searchParams = useSearchParams();
   const router       = useRouter();
@@ -173,6 +260,10 @@ export default function TasksPage() {
   const [dateTo,         setDateTo]         = useState(() => searchParams.get("to") || "");
   const [showDates,      setShowDates]      = useState(false);
   const [lastUpdate,     setLastUpdate]     = useState(Date.now());
+  // Inline create form: null = hidden, TaskStatus = open for that column
+  const [createForm,     setCreateForm]     = useState<CreateFormState | null>(null);
+  // Pending delete confirmation
+  const [pendingDelete,  setPendingDelete]  = useState<string | null>(null);
 
   const updateURL = (updates: Record<string, string | null>) => {
     const p = new URLSearchParams(searchParams.toString());
@@ -222,16 +313,18 @@ export default function TasksPage() {
     }, {} as Record<string, Task[]>),
   [filteredTasks]);
 
-  const handleCreate = async (status: TaskStatus) => {
-    const title = prompt(`Task title for [${status}]:`);
-    if (!title) return;
-    const suggested = inferAssignee(title);
-    const assignee = confirm(`Assign to ${assigneeLabel(suggested)}?`) ? suggested : "sam";
+  const handleCreate = async (title: string, assignee: Assignee, status: TaskStatus) => {
     await createTask({ title, assigned_to: assignee, status });
+    setCreateForm(null);
   };
 
-  const handleMove   = async (id: string, s: TaskStatus) => { await updateStatus({ id: id as Id<"tasks">, status: s }); };
-  const handleDelete = async (id: string) => { if (confirm("Delete this task?")) await removeTask({ id: id as Id<"tasks"> }); };
+  const handleMove        = async (id: string, s: TaskStatus) => { await updateStatus({ id: id as Id<"tasks">, status: s }); };
+  const handleDeleteRequest = (id: string) => { setPendingDelete(id); };
+  const handleDeleteConfirm = async () => {
+    if (!pendingDelete) return;
+    await removeTask({ id: pendingDelete as Id<"tasks"> });
+    setPendingDelete(null);
+  };
 
   const totalCount = filteredTasks.length;
   const doneCount  = tasksByStatus["done"]?.length || 0;
@@ -295,8 +388,38 @@ export default function TasksPage() {
         )}
       </div>
 
+      {/* Delete confirmation overlay */}
+      {pendingDelete && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Confirm delete"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        >
+          <div className="panel-glass p-5 rounded-xl max-w-xs w-full mx-4 space-y-4">
+            <p className="text-sm text-slate-200 font-medium">Delete this task?</p>
+            <p className="text-xs text-slate-400">This action cannot be undone.</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="btn-secondary text-xs"
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="btn-danger"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Kanban Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+      <div className="kanban-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
         {COLUMNS.map((col) => (
           <div key={col.key} className="flex flex-col">
             {/* Column header */}
@@ -317,15 +440,24 @@ export default function TasksPage() {
                   key={String(task._id)}
                   task={task}
                   onMove={handleMove}
-                  onDelete={handleDelete}
+                  onDelete={handleDeleteRequest}
                 />
               ))}
-              <button
-                onClick={() => handleCreate(col.key)}
-                className="w-full py-1.5 text-[10px] text-slate-600 hover:text-slate-300 border border-dashed border-white/8 hover:border-white/20 rounded-lg transition-colors"
-              >
-                + Add task
-              </button>
+              {createForm?.status === col.key ? (
+                <InlineCreateForm
+                  initialStatus={col.key}
+                  onSubmit={handleCreate}
+                  onCancel={() => setCreateForm(null)}
+                />
+              ) : (
+                <button
+                  onClick={() => setCreateForm({ status: col.key, title: "", assignee: "sam" })}
+                  className="w-full py-1.5 text-[10px] text-slate-600 hover:text-slate-300 border border-dashed border-white/8 hover:border-white/20 rounded-lg transition-colors"
+                  aria-label={`Add task to ${col.label}`}
+                >
+                  + Add task
+                </button>
+              )}
             </div>
           </div>
         ))}

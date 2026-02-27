@@ -454,7 +454,7 @@ export default function Home() {
             </div>
             <div className="max-h-[110px] overflow-y-auto">
               {allIncidents.length > 0 ? (
-                allIncidents.map((inc, i) => <IncidentRow key={i} incident={inc} />)
+                allIncidents.map((inc) => <IncidentRow key={`${inc.source}-${inc.id}`} incident={inc} />)
               ) : (
                 <p className="text-[10px] text-slate-600 text-center py-4">No incidents</p>
               )}
