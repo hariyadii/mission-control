@@ -243,7 +243,7 @@ a { color: inherit; }
   }
   .app-shell  { overflow-x: hidden; }
   .content-wrap {
-    padding: 3.5rem 0.625rem 0.625rem !important;
+    padding: 3.75rem 0.625rem 0.75rem !important;
     overflow-x: hidden;
     min-width: 0;
   }
@@ -253,6 +253,8 @@ a { color: inherit; }
   .page-title   { font-size: 1.125rem !important; }
   /* Clamp computed max-heights so they never go negative on short viewports */
   .max-h-screen-clamped { max-height: max(200px, calc(100vh - 300px)); }
+  /* Prevent 300ms tap delay on interactive elements */
+  button, a, select, input { touch-action: manipulation; }
 }
 
 @media (max-width: 920px) {
