@@ -32,13 +32,15 @@ export default function Sidebar() {
   return (
     <aside
       className="sidebar sticky top-0 flex min-h-screen flex-col border-r border-white/8 bg-[#070c1a]/95 backdrop-blur-2xl"
-      role="navigation"
       aria-label="Main navigation"
     >
       {/* Wordmark */}
       <div className="px-4 pt-5 pb-4 border-b border-white/8">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0">
+          <div
+            className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0"
+            aria-hidden="true"
+          >
             <span className="text-white text-sm font-bold leading-none">M</span>
           </div>
           <div className="sidebar-title-wrap overflow-hidden">
@@ -54,7 +56,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-col gap-0.5 px-2 py-3 flex-1" role="menubar">
+      <nav className="flex flex-col gap-0.5 px-2 py-3 flex-1">
         {NAV.map(({ href, label, icon, color }) => {
           const active = pathname === href;
           const s = ACTIVE_STYLES[color as NavColor];
@@ -63,8 +65,8 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
-              role="menuitem"
               aria-current={active ? "page" : undefined}
+              aria-label={label}
               className={[
                 "nav-link group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150",
                 active
@@ -102,8 +104,8 @@ export default function Sidebar() {
       <div className="px-3 py-3 border-t border-white/8">
         <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-slate-900/60">
           <span className="text-[10px] text-slate-600">
-            <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-400 border border-white/10">?</kbd>
-            {" "}shortcuts
+            <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-400 border border-white/10" aria-label="Press ? for keyboard shortcuts">?</kbd>
+            <span className="sidebar-label"> shortcuts</span>
           </span>
           <span className="text-[10px] text-slate-600">v2.1</span>
         </div>

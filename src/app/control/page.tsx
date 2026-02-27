@@ -106,9 +106,9 @@ export default function ControlPage() {
             {data?.policy?.killSwitch ? "ON" : "OFF"}
           </p>
         </div>
-        <div className="panel-glass p-3">
+        <div className="panel-glass p-3 min-w-0">
           <p className="section-label mb-1">X Actions Today</p>
-          <p className="text-xl font-bold text-slate-100 mt-1 tabular-nums">
+          <p className="text-xl font-bold text-slate-100 mt-1 tabular-nums truncate">
             {data?.externalActionsToday ?? "—"} / {data?.policy?.external?.maxActionsPerDay ?? "—"}
           </p>
         </div>
@@ -150,8 +150,8 @@ export default function ControlPage() {
       <SectionCard title="Cron Jobs">
         <div className="space-y-1 max-h-[220px] overflow-y-auto">
           {data?.cronJobs?.jobs?.map((job) => (
-            <div key={job.id} className="flex items-center justify-between px-2.5 py-2 text-xs panel-soft">
-              <span className="text-slate-300 truncate max-w-[200px] font-mono text-[10px]" title={job.id}>{job.id}</span>
+            <div key={job.id} className="flex items-center justify-between gap-2 px-2.5 py-2 text-xs panel-soft min-w-0">
+              <span className="text-slate-300 truncate flex-1 min-w-0 font-mono text-[10px]" title={job.id}>{job.id}</span>
               <StatusBadge status={job.enabled ? "enabled" : "disabled"} size="xs" />
             </div>
           )) ?? (

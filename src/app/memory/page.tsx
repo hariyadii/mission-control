@@ -28,7 +28,7 @@ function MemoryCard({ title, content, date }: { title: string; content: string; 
           </button>
         )}
       </div>
-      <pre className="whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-slate-400 overflow-x-hidden">
+      <pre className="whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-slate-400 overflow-x-hidden max-w-full">
         {expanded ? content : preview + (hasMore ? "…" : "")}
       </pre>
     </article>

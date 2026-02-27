@@ -303,14 +303,14 @@ export default function Home() {
           placeholder="Search tasks..."
           className="text-xs"
         />
-        <FilterSelect value={agentFilter} onChange={setAgentFilter} className="py-1.5">
+        <FilterSelect value={agentFilter} onChange={setAgentFilter} ariaLabel="Filter by agent" className="py-1.5">
           <option value="all">All agents</option>
           <option value="sam">Sam</option>
           <option value="lyra">Lyra</option>
           <option value="alex">Alex</option>
           <option value="nova">Nova</option>
         </FilterSelect>
-        <FilterSelect value={statusFilter} onChange={setStatusFilter} className="py-1.5">
+        <FilterSelect value={statusFilter} onChange={setStatusFilter} ariaLabel="Filter by status" className="py-1.5">
           <option value="all">All status</option>
           <option value="suggested">Suggested</option>
           <option value="backlog">Backlog</option>
@@ -515,7 +515,7 @@ export default function Home() {
       </div>
 
       {/* ── Mission Footer ── */}
-      <div className="panel-glass bg-gradient-to-r from-indigo-500/8 to-cyan-500/8 px-4 py-3 flex items-center justify-between gap-4">
+      <div className="panel-glass bg-gradient-to-r from-indigo-500/8 to-cyan-500/8 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-slate-600 font-semibold">Mission</p>
           <p className="text-xs text-slate-400 mt-0.5">

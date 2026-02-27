@@ -157,9 +157,9 @@ export default function CapitalPage() {
                     {pos.unrealizedPnl >= 0 ? "+" : ""}{pos.unrealizedPnlPct.toFixed(1)}%
                   </span>
                 </div>
-                <div className="flex justify-between text-[10px] text-slate-500">
-                  <span>${pos.entryPrice.toFixed(2)} → ${pos.currentPrice.toFixed(2)}</span>
-                  <span>SL {pos.stopLoss} · TP {pos.takeProfit}</span>
+                <div className="flex justify-between gap-2 text-[10px] text-slate-500 min-w-0">
+                  <span className="truncate">${pos.entryPrice.toFixed(2)} → ${pos.currentPrice.toFixed(2)}</span>
+                  <span className="shrink-0">SL {pos.stopLoss} · TP {pos.takeProfit}</span>
                 </div>
               </div>
             ))

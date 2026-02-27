@@ -98,16 +98,16 @@ export default function AuditPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 p-2.5 panel-glass">
         <FilterInput value={searchQuery} onChange={setSearchQuery} placeholder="Search actions…" className="text-xs" />
-        <FilterSelect value={datePreset}   onChange={(v) => setDatePreset(v as DatePreset)} className="py-1.5">
+        <FilterSelect value={datePreset}   onChange={(v) => setDatePreset(v as DatePreset)} ariaLabel="Filter by date range" className="py-1.5">
           {DATE_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
         </FilterSelect>
-        <FilterSelect value={agentFilter}  onChange={(v) => setAgentFilter(v as Assignee | "all")} className="py-1.5">
+        <FilterSelect value={agentFilter}  onChange={(v) => setAgentFilter(v as Assignee | "all")} ariaLabel="Filter by agent" className="py-1.5">
           <option value="all">All agents</option>
           {["alex","sam","lyra","nova","ops"].map((a) => (
             <option key={a} value={a}>{a.charAt(0).toUpperCase() + a.slice(1)}</option>
           ))}
         </FilterSelect>
-        <FilterSelect value={statusFilter} onChange={(v) => setStatusFilter(v as typeof statusFilter)} className="py-1.5">
+        <FilterSelect value={statusFilter} onChange={(v) => setStatusFilter(v as typeof statusFilter)} ariaLabel="Filter by status" className="py-1.5">
           <option value="all">All status</option>
           <option value="success">Success</option>
           <option value="failed">Failed</option>
@@ -125,7 +125,7 @@ export default function AuditPage() {
 
       {/* Audit list */}
       <div className="panel-glass p-2.5">
-        <div className="space-y-0 max-h-[calc(100vh-400px)] overflow-y-auto">
+        <div className="space-y-0 overflow-y-auto" style={{ maxHeight: "max(240px, calc(100vh - 400px))" }}>
           {filtered.length > 0 ? (
             filtered.slice(0, 60).map((entry) => (
               <div

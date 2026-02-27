@@ -99,10 +99,11 @@ function TaskCard({
 
   return (
     <div className="relative w-full" onMouseEnter={enter} onMouseLeave={leave}>
-      {/* Preview popup */}
+      {/* Preview popup — aria-hidden: purely decorative hover detail */}
       {previewVisible && (
         <div
-          className={`absolute top-0 z-50 w-60 p-3 panel-glass border border-white/15 rounded-lg shadow-2xl ${
+          aria-hidden="true"
+          className={`absolute top-0 z-50 w-52 p-3 panel-glass border border-white/15 rounded-lg shadow-2xl ${
             side === "right" ? "left-full ml-2" : "right-full mr-2"
           }`}
           onMouseEnter={previewEnter}
@@ -128,7 +129,7 @@ function TaskCard({
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(String(task._id)); }}
-            className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-400 transition-all ml-1 shrink-0 text-sm leading-none"
+            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-slate-600 hover:text-rose-400 transition-all ml-1 shrink-0 text-sm leading-none"
             aria-label="Delete task"
           >
             ×
@@ -140,7 +141,8 @@ function TaskCard({
             value={task.status}
             onChange={(e) => onMove(String(task._id), e.target.value as TaskStatus)}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 bg-slate-900/60 border border-white/8 rounded px-1 py-0.5 text-[9px] text-slate-400 focus:outline-none focus:border-indigo-400/50 cursor-pointer"
+            aria-label="Change task status"
+            className="flex-1 bg-slate-900/60 border border-white/8 rounded px-1 py-0.5 text-[9px] text-slate-400 focus:outline-none focus:border-indigo-400/50 focus:ring-1 focus:ring-indigo-400/40 cursor-pointer"
           >
             {STATUS_ORDER.map((s) => (
               <option key={s} value={s}>{s.replace("_", " ")}</option>
@@ -260,13 +262,13 @@ export default function TasksPage() {
           placeholder="Search tasks..."
           className="text-xs"
         />
-        <FilterSelect value={filterAssignee} onChange={(v) => handleAssignee(v as Assignee | "all")} className="py-1.5">
+        <FilterSelect value={filterAssignee} onChange={(v) => handleAssignee(v as Assignee | "all")} ariaLabel="Filter by agent" className="py-1.5">
           <option value="all">All ({assigneeCounts.all || 0})</option>
           {ASSIGNEE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label} ({assigneeCounts[o.value] || 0})</option>
           ))}
         </FilterSelect>
-        <FilterSelect value={filterStatus} onChange={(v) => handleStatus(v as FilterStatus)} className="py-1.5">
+        <FilterSelect value={filterStatus} onChange={(v) => handleStatus(v as FilterStatus)} ariaLabel="Filter by status" className="py-1.5">
           <option value="all">All status</option>
           {COLUMNS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
         </FilterSelect>
@@ -309,7 +311,7 @@ export default function TasksPage() {
             </div>
 
             {/* Tasks */}
-            <div className="flex-1 space-y-1.5 p-2 panel-soft rounded-t-none min-h-[180px] max-h-[calc(100vh-300px)] overflow-y-auto border-t-0">
+            <div className="flex-1 space-y-1.5 p-2 panel-soft rounded-t-none min-h-[180px] overflow-y-auto border-t-0" style={{ maxHeight: "max(200px, calc(100vh - 300px))" }}>
               {(tasksByStatus[col.key] || []).map((task) => (
                 <TaskCard
                   key={String(task._id)}
