@@ -64,7 +64,7 @@ const IncidentTimeline = React.memo(function IncidentTimeline({
       {/* Header */}
       <div className="flex items-center justify-between mb-2 px-0.5">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-stone-500">
             Incidents
           </span>
           <div className="flex items-center gap-1">
@@ -96,8 +96,8 @@ const IncidentTimeline = React.memo(function IncidentTimeline({
                     ? "bg-rose-500/25 text-rose-300 border border-rose-500/30"
                     : s === "warning"
                     ? "bg-amber-500/25 text-amber-300 border border-amber-500/30"
-                    : "bg-slate-700/60 text-slate-200 border border-white/15"
-                  : "text-slate-600 hover:text-slate-400"
+                    : "bg-stone-200/60 text-stone-700 border border-stone-300/50"
+                  : "text-stone-500 hover:text-stone-500"
               }`}
               aria-pressed={filter === s}
             >
@@ -127,7 +127,7 @@ const IncidentTimeline = React.memo(function IncidentTimeline({
               <IncidentBadge severity={inc.severity} />
               <div className="flex-1 min-w-0">
                 <p
-                  className="text-slate-200 truncate leading-snug font-medium"
+                  className="text-stone-700 truncate leading-snug font-medium"
                   title={inc.message}
                 >
                   {inc.message}
@@ -143,13 +143,13 @@ const IncidentTimeline = React.memo(function IncidentTimeline({
                   </p>
                 )}
               </div>
-              <span className="text-[9px] text-slate-500 whitespace-nowrap shrink-0">
+              <span className="text-[9px] text-stone-500 whitespace-nowrap shrink-0">
                 {formatTs(inc.timestamp)}
               </span>
             </div>
           ))
         ) : (
-          <p className="text-[10px] text-slate-600 text-center py-4">
+          <p className="text-[10px] text-stone-500 text-center py-4">
             {filter === "all" ? "No incidents" : `No ${filter} incidents`}
           </p>
         )}

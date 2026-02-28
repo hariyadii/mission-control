@@ -1,0 +1,22 @@
+
+> mission-control@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.5
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./src/app/team/page.tsx:92:51
+Type error: 'inProgressCount' is possibly 'null'.
+
+[0m [90m 90 |[39m       [33m<[39m[33mdiv[39m className[33m=[39m[32m"flex items-center justify-between"[39m[33m>[39m[0m
+[0m [90m 91 |[39m         [33m<[39m[33mspan[39m className[33m=[39m[32m"text-[9px] text-slate-500"[39m[33m>[39m{agent[33m.[39mmodel}[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 92 |[39m         [33m<[39m[33mspan[39m className[33m=[39m{[32m`text-xs font-semibold ${inProgressCount > 0 ? "text-cyan-400" : "text-slate-400"}`[39m}[33m>[39m[0m
+[0m [90m    |[39m                                                   [31m[1m^[22m[39m[0m
+[0m [90m 93 |[39m           {inProgressCount [33m===[39m [36mnull[39m [33m?[39m [32m"..."[39m [33m:[39m inProgressCount [33m>[39m [35m0[39m [33m?[39m [32m`${inProgressCount} running`[39m [33m:[39m [32m"idle"[39m}[0m
+[0m [90m 94 |[39m         [33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+[0m [90m 95 |[39m       [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m

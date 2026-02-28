@@ -31,7 +31,7 @@ export const EmptyState = memo(function EmptyState({
 }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center gap-1.5 py-8 px-4 text-center">
-      <span className="text-2xl text-slate-700 leading-none" aria-hidden="true">
+      <span className="text-2xl text-stone-500 leading-none" aria-hidden="true">
         {icon}
       </span>
       <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>

@@ -1,0 +1,46 @@
+
+> mission-control@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.5
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/19) ...
+   Generating static pages (4/19) 
+   Generating static pages (9/19) 
+   Generating static pages (14/19) 
+ ✓ Generating static pages (19/19)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    3.09 kB         114 kB
+├ ○ /_not-found                          871 B          87.9 kB
+├ ƒ /api/agent-task                      0 B                0 B
+├ ƒ /api/autonomy                        0 B                0 B
+├ ○ /api/calendar                        0 B                0 B
+├ ƒ /api/capital                         0 B                0 B
+├ ƒ /api/control                         0 B                0 B
+├ ○ /api/drafts/status                   0 B                0 B
+├ ƒ /api/memory                          0 B                0 B
+├ ○ /audit                               3.36 kB         115 kB
+├ ○ /calendar                            2.19 kB         113 kB
+├ ○ /capital                             1.63 kB        88.7 kB
+├ ○ /control                             3.24 kB        90.3 kB
+├ ○ /memory                              1.28 kB        88.3 kB
+├ ○ /office                              1.82 kB         113 kB
+├ ○ /tasks                               6.37 kB         118 kB
+└ ○ /team                                1.35 kB         113 kB
++ First Load JS shared by all            87.1 kB
+  ├ chunks/23-507c711814903b52.js        31.5 kB
+  ├ chunks/fd9d1056-d29d5f6ae98769ee.js  53.6 kB
+  └ other shared chunks (total)          1.89 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

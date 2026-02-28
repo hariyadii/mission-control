@@ -74,7 +74,7 @@ const PHASE_STYLE: Record<NonNullable<AuditEntry["phase"]>, { dot: string; label
   complete:  { dot: "bg-emerald-400", label: "Complete", color: "text-emerald-300"},
   blocked:   { dot: "bg-rose-400",    label: "Blocked",  color: "text-rose-300"   },
   requeue:   { dot: "bg-amber-400",   label: "Requeue",  color: "text-amber-300"  },
-  other:     { dot: "bg-slate-500",   label: "Action",   color: "text-slate-400"  },
+  other:     { dot: "bg-stone-500",   label: "Action",   color: "text-stone-500"  },
 };
 
 // ── Audit Entry Row ─────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ function AuditRow({ entry, showPhase }: { entry: AuditEntry; showPhase: boolean 
 
   return (
     <div
-      className={`border-b border-white/5 last:border-0 transition-colors ${
+      className={`border-b border-stone-200/50 last:border-0 transition-colors ${
         isFailed ? "bg-rose-500/5 hover:bg-rose-500/8" : "hover:bg-white/[0.025]"
       }`}
     >
@@ -99,7 +99,7 @@ function AuditRow({ entry, showPhase }: { entry: AuditEntry; showPhase: boolean 
         aria-label={`Audit entry: ${entry.action}`}
       >
         {/* Time */}
-        <span className="text-[9px] text-slate-600 w-12 tabular-nums shrink-0">
+        <span className="text-[9px] text-stone-500 w-12 tabular-nums shrink-0">
           {fmtTime(entry.timestamp)}
         </span>
 
@@ -117,7 +117,7 @@ function AuditRow({ entry, showPhase }: { entry: AuditEntry; showPhase: boolean 
 
         {/* Action */}
         <span
-          className={`flex-1 truncate ${isFailed ? "text-rose-200 font-medium" : "text-slate-200"}`}
+          className={`flex-1 truncate ${isFailed ? "text-rose-200 font-medium" : "text-stone-700"}`}
           title={entry.action}
         >
           {entry.action}
@@ -125,7 +125,7 @@ function AuditRow({ entry, showPhase }: { entry: AuditEntry; showPhase: boolean 
 
         {/* Target */}
         <span
-          className="text-slate-500 truncate max-w-[100px] hidden md:block text-[10px]"
+          className="text-stone-500 truncate max-w-[100px] hidden md:block text-[10px]"
           title={entry.target}
         >
           {entry.target}
@@ -136,7 +136,7 @@ function AuditRow({ entry, showPhase }: { entry: AuditEntry; showPhase: boolean 
 
         {/* Expand indicator */}
         {entry.details && (
-          <span className={`text-[9px] text-slate-600 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true">
+          <span className={`text-[9px] text-stone-500 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true">
             ▾
           </span>
         )}
@@ -145,12 +145,12 @@ function AuditRow({ entry, showPhase }: { entry: AuditEntry; showPhase: boolean 
       {/* Expanded details */}
       {expanded && entry.details && (
         <div className="px-3 pb-2.5 pt-0">
-          <div className="rounded-lg bg-slate-900/60 border border-white/8 p-2.5">
+          <div className="rounded-lg bg-stone-50/60 border border-stone-200/50 p-2.5">
             <div className="flex items-center gap-2 mb-1.5">
               <span className={`text-[9px] font-bold ${phaseStyle.color}`}>{phaseStyle.label}</span>
-              <span className="text-[9px] text-slate-500">{fmtDatetime(entry.timestamp)}</span>
+              <span className="text-[9px] text-stone-500">{fmtDatetime(entry.timestamp)}</span>
             </div>
-            <pre className="text-[10px] text-slate-400 font-mono whitespace-pre-wrap break-words leading-relaxed">
+            <pre className="text-[10px] text-stone-500 font-mono whitespace-pre-wrap break-words leading-relaxed">
               {entry.details}
             </pre>
           </div>
@@ -179,13 +179,13 @@ function LifecycleTimeline({ entries }: { entries: AuditEntry[] }) {
 
   return (
     <section className="panel-glass p-2.5">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">
         Task Lifecycles ({grouped.size})
       </p>
       <div className="space-y-3 max-h-[220px] overflow-y-auto">
         {Array.from(grouped.entries()).slice(0, 8).map(([taskId, evs]) => (
           <div key={taskId} className="space-y-1">
-            <p className="text-[9px] font-mono text-slate-500 truncate">{taskId}</p>
+            <p className="text-[9px] font-mono text-stone-500 truncate">{taskId}</p>
             <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
               {evs
                 .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
@@ -194,11 +194,11 @@ function LifecycleTimeline({ entries }: { entries: AuditEntry[] }) {
                   const style = PHASE_STYLE[phase];
                   return (
                     <div key={i} className="flex items-center gap-1 shrink-0">
-                      {i > 0 && <span className="text-slate-700 text-[8px]">—</span>}
+                      {i > 0 && <span className="text-stone-500 text-[8px]">—</span>}
                       <div className="flex flex-col items-center">
                         <span className={`w-2 h-2 rounded-full ${style.dot}`} aria-hidden="true" title={`${style.label}: ${ev.action}`} />
                         <span className={`text-[8px] mt-0.5 ${style.color}`}>{style.label.slice(0, 5)}</span>
-                        <span className="text-[8px] text-slate-700 tabular-nums">{fmtTime(ev.timestamp)}</span>
+                        <span className="text-[8px] text-stone-500 tabular-nums">{fmtTime(ev.timestamp)}</span>
                       </div>
                     </div>
                   );
@@ -281,7 +281,7 @@ export default function AuditPage() {
       <div className="grid grid-cols-4 gap-2">
         <div className="panel-glass p-3 text-center">
           <p className="section-label mb-1">Total</p>
-          <p className="text-2xl font-bold text-slate-100 tabular-nums">{entries.length}</p>
+          <p className="text-2xl font-bold text-stone-800 tabular-nums">{entries.length}</p>
         </div>
         <div className="panel-glass p-3 text-center">
           <p className="section-label mb-1 text-emerald-500">Success</p>
@@ -297,7 +297,7 @@ export default function AuditPage() {
           aria-pressed={statusFilter === "failed"}
         >
           <p className={`section-label mb-1 ${failCount > 0 ? "text-rose-500" : ""}`}>Failed</p>
-          <p className={`text-2xl font-bold tabular-nums ${failCount > 0 ? "text-rose-400" : "text-slate-600"}`}>
+          <p className={`text-2xl font-bold tabular-nums ${failCount > 0 ? "text-rose-400" : "text-stone-500"}`}>
             {failCount}
           </p>
         </button>
@@ -342,7 +342,7 @@ export default function AuditPage() {
             ✕ Clear
           </button>
         )}
-        <span className="ml-auto text-[10px] text-slate-500 tabular-nums">{filtered.length} entries</span>
+        <span className="ml-auto text-[10px] text-stone-500 tabular-nums">{filtered.length} entries</span>
       </div>
 
       {/* Lifecycle timeline (optional) */}
@@ -358,11 +358,11 @@ export default function AuditPage() {
               <AuditRow key={entry.id} entry={entry} showPhase={!showTimeline} />
             ))
           ) : (
-            <p className="text-xs text-slate-600 text-center py-6">No audit entries</p>
+            <p className="text-xs text-stone-500 text-center py-6">No audit entries</p>
           )}
         </div>
         {sortedFiltered.length > 0 && (
-          <p className="text-[9px] text-slate-600 text-center mt-2 pt-2 border-t border-white/5">
+          <p className="text-[9px] text-stone-500 text-center mt-2 pt-2 border-t border-stone-200/50">
             Showing {Math.min(100, sortedFiltered.length)} of {sortedFiltered.length}
             {statusFilter === "all" && failCount > 0 && (
               <> · <button className="text-rose-400 hover:text-rose-200 ml-1" onClick={() => setStatusFilter("failed")}>

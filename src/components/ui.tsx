@@ -135,12 +135,12 @@ const STATUS_MAP: Record<string, BadgeConfig> = {
   critical:    { label: "CRIT",    colorClass: "text-rose-300",     bgClass: "bg-rose-500/15 border border-rose-500/28"        },
   none:        { label: "OK",      colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
   enabled:     { label: "ON",      colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
-  disabled:    { label: "OFF",     colorClass: "text-slate-400",    bgClass: "bg-slate-700/45 border border-slate-600/38"      },
+  disabled:    { label: "OFF",     colorClass: "text-stone-500",    bgClass: "bg-stone-200/45 border border-stone-300/38"      },
   paper:       { label: "PAPER",   colorClass: "text-violet-300",   bgClass: "bg-violet-500/15 border border-violet-500/28"   },
   live:        { label: "LIVE",    colorClass: "text-rose-300",     bgClass: "bg-rose-500/15 border border-rose-500/28"        },
   active:      { label: "ACTIVE",  colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
   online:      { label: "ONLINE",  colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
-  offline:     { label: "OFFLINE", colorClass: "text-slate-400",    bgClass: "bg-slate-700/45 border border-slate-600/38"      },
+  offline:     { label: "OFFLINE", colorClass: "text-stone-500",    bgClass: "bg-stone-200/45 border border-stone-300/38"      },
   busy:        { label: "BUSY",    colorClass: "text-amber-300",    bgClass: "bg-amber-500/15 border border-amber-500/28"      },
   success:     { label: "OK",      colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
   pending:     { label: "PEND",    colorClass: "text-amber-300",    bgClass: "bg-amber-500/15 border border-amber-500/28"      },
@@ -164,8 +164,8 @@ export function StatusBadge({
   const key = status?.toLowerCase() ?? "";
   const c: BadgeConfig = STATUS_MAP[key] ?? {
     label:      key.slice(0, 6).toUpperCase() || "—",
-    colorClass: "text-slate-300",
-    bgClass:    "bg-slate-700/45 border border-slate-600/38",
+    colorClass: "text-stone-600",
+    bgClass:    "bg-stone-200/45 border border-stone-300/38",
   };
   return (
     <span
@@ -185,9 +185,9 @@ const AGENT_MAP: Record<string, BadgeConfig> = {
   lyra:  { label: "LYRA",  colorClass: "text-violet-300",  bgClass: "bg-violet-500/15 border border-violet-500/28" },
   alex:  { label: "ALEX",  colorClass: "text-amber-300",   bgClass: "bg-amber-500/15 border border-amber-500/28"   },
   nova:  { label: "NOVA",  colorClass: "text-rose-300",    bgClass: "bg-rose-500/15 border border-rose-500/28"     },
-  ops:   { label: "OPS",   colorClass: "text-slate-300",   bgClass: "bg-slate-700/45 border border-slate-600/38"   },
+  ops:   { label: "OPS",   colorClass: "text-stone-600",   bgClass: "bg-stone-200/45 border border-stone-300/38"   },
   me:    { label: "ME",    colorClass: "text-emerald-300", bgClass: "bg-emerald-500/15 border border-emerald-500/28"},
-  agent: { label: "AGENT", colorClass: "text-slate-400",   bgClass: "bg-slate-700/45 border border-slate-600/38"   },
+  agent: { label: "AGENT", colorClass: "text-stone-500",   bgClass: "bg-stone-200/45 border border-stone-300/38"   },
 };
 
 export function AgentBadge({
@@ -200,8 +200,8 @@ export function AgentBadge({
   const key = agent?.toLowerCase() ?? "";
   const c: BadgeConfig = AGENT_MAP[key] ?? {
     label:      key.slice(0, 4).toUpperCase() || "—",
-    colorClass: "text-slate-300",
-    bgClass:    "bg-slate-700/45 border border-slate-600/38",
+    colorClass: "text-stone-600",
+    bgClass:    "bg-stone-200/45 border border-stone-300/38",
   };
   return (
     <span className={`inline-flex items-center rounded-md font-semibold ${c.colorClass} ${c.bgClass} ${SIZE_CLS[size]}`}>
@@ -220,7 +220,7 @@ export function IncidentBadge({ severity }: { severity: string }) {
     warning:  { label: "WARN", colorClass: "text-amber-300",   bgClass: "bg-amber-500/22 border border-amber-500/38"   },
     normal:   { label: "OK",   colorClass: "text-emerald-300", bgClass: "bg-emerald-500/22 border border-emerald-500/38"},
   };
-  const c = map[severity] ?? { label: "—", colorClass: "text-slate-300", bgClass: "bg-slate-700/45 border border-slate-600/38" };
+  const c = map[severity] ?? { label: "—", colorClass: "text-stone-600", bgClass: "bg-stone-200/45 border border-stone-300/38" };
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold ${c.colorClass} ${c.bgClass}`}>
       {c.label}
@@ -399,7 +399,7 @@ export function MetricCard({
   accent?: "emerald" | "rose" | "cyan" | "violet" | "amber";
 }) {
   const trendIcon  = { up: "↑", down: "↓", stable: "→" }[trend ?? "stable"];
-  const trendColor = { up: "text-emerald-400", down: "text-rose-400", stable: "text-slate-500" }[trend ?? "stable"];
+  const trendColor = { up: "text-emerald-400", down: "text-rose-400", stable: "text-stone-500" }[trend ?? "stable"];
   const variantMap: Record<string, MetricTileVariant> = {
     emerald: "ok",
     rose:    "crit",
@@ -450,7 +450,7 @@ export function Sparkline({
       {data.map((v, i) => (
         <div
           key={i}
-          className={`flex-1 rounded-sm ${v > 0 ? colorCls[color] : "bg-slate-800"}`}
+          className={`flex-1 rounded-sm ${v > 0 ? colorCls[color] : "bg-stone-100"}`}
           style={{ height: `${v > 0 ? Math.max(18, (v / maxVal) * 100) : 15}%` }}
         />
       ))}
@@ -594,7 +594,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-1.5 py-8 px-4 text-center">
-      <span className="text-2xl text-slate-700 leading-none" aria-hidden="true">{icon}</span>
+      <span className="text-2xl text-stone-500 leading-none" aria-hidden="true">{icon}</span>
       <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>{message}</p>
       {sub && <p className="text-[10px]" style={{ color: "var(--text-faint)" }}>{sub}</p>}
     </div>

@@ -43,12 +43,12 @@ const STATUS_MAP: Record<string, BadgeConfig> = {
   critical:    { label: "CRIT",    colorClass: "text-rose-300",     bgClass: "bg-rose-500/15 border border-rose-500/28"        },
   none:        { label: "OK",      colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
   enabled:     { label: "ON",      colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
-  disabled:    { label: "OFF",     colorClass: "text-slate-400",    bgClass: "bg-slate-700/45 border border-slate-600/38"      },
+  disabled:    { label: "OFF",     colorClass: "text-stone-500",    bgClass: "bg-stone-200/45 border border-stone-300/38"      },
   paper:       { label: "PAPER",   colorClass: "text-violet-300",   bgClass: "bg-violet-500/15 border border-violet-500/28"   },
   live:        { label: "LIVE",    colorClass: "text-rose-300",     bgClass: "bg-rose-500/15 border border-rose-500/28"        },
   active:      { label: "ACTIVE",  colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
   online:      { label: "ONLINE",  colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
-  offline:     { label: "OFFLINE", colorClass: "text-slate-400",    bgClass: "bg-slate-700/45 border border-slate-600/38"      },
+  offline:     { label: "OFFLINE", colorClass: "text-stone-500",    bgClass: "bg-stone-200/45 border border-stone-300/38"      },
   busy:        { label: "BUSY",    colorClass: "text-amber-300",    bgClass: "bg-amber-500/15 border border-amber-500/28"      },
   success:     { label: "OK",      colorClass: "text-emerald-300",  bgClass: "bg-emerald-500/15 border border-emerald-500/28"  },
   pending:     { label: "PEND",    colorClass: "text-amber-300",    bgClass: "bg-amber-500/15 border border-amber-500/28"      },
@@ -68,8 +68,8 @@ export const StatusBadge = memo(function StatusBadge({
   const key = status?.toLowerCase() ?? "";
   const c: BadgeConfig = STATUS_MAP[key] ?? {
     label:      key.slice(0, 6).toUpperCase() || "—",
-    colorClass: "text-slate-300",
-    bgClass:    "bg-slate-700/45 border border-slate-600/38",
+    colorClass: "text-stone-600",
+    bgClass:    "bg-stone-200/45 border border-stone-300/38",
   };
   return (
     <span
@@ -89,9 +89,9 @@ const AGENT_MAP: Record<string, BadgeConfig> = {
   lyra:  { label: "LYRA",  colorClass: "text-violet-300",  bgClass: "bg-violet-500/15 border border-violet-500/28" },
   alex:  { label: "ALEX",  colorClass: "text-amber-300",   bgClass: "bg-amber-500/15 border border-amber-500/28"   },
   nova:  { label: "NOVA",  colorClass: "text-rose-300",    bgClass: "bg-rose-500/15 border border-rose-500/28"     },
-  ops:   { label: "OPS",   colorClass: "text-slate-300",   bgClass: "bg-slate-700/45 border border-slate-600/38"   },
+  ops:   { label: "OPS",   colorClass: "text-stone-600",   bgClass: "bg-stone-200/45 border border-stone-300/38"   },
   me:    { label: "ME",    colorClass: "text-emerald-300", bgClass: "bg-emerald-500/15 border border-emerald-500/28"},
-  agent: { label: "AGENT", colorClass: "text-slate-400",   bgClass: "bg-slate-700/45 border border-slate-600/38"   },
+  agent: { label: "AGENT", colorClass: "text-stone-500",   bgClass: "bg-stone-200/45 border border-stone-300/38"   },
 };
 
 export interface AgentBadgeProps {
@@ -106,8 +106,8 @@ export const AgentBadge = memo(function AgentBadge({
   const key = agent?.toLowerCase() ?? "";
   const c: BadgeConfig = AGENT_MAP[key] ?? {
     label:      key.slice(0, 4).toUpperCase() || "—",
-    colorClass: "text-slate-300",
-    bgClass:    "bg-slate-700/45 border border-slate-600/38",
+    colorClass: "text-stone-600",
+    bgClass:    "bg-stone-200/45 border border-stone-300/38",
   };
   return (
     <span className={`inline-flex items-center rounded-md font-semibold ${c.colorClass} ${c.bgClass} ${SIZE_CLS[size]}`}>
@@ -133,8 +133,8 @@ export interface IncidentBadgeProps {
 export const IncidentBadge = memo(function IncidentBadge({ severity }: IncidentBadgeProps) {
   const c = INCIDENT_MAP[severity] ?? {
     label:      "—",
-    colorClass: "text-slate-300",
-    bgClass:    "bg-slate-700/45 border border-slate-600/38",
+    colorClass: "text-stone-600",
+    bgClass:    "bg-stone-200/45 border border-stone-300/38",
   };
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold ${c.colorClass} ${c.bgClass}`}>

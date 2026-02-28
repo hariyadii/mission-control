@@ -1,0 +1,17 @@
+
+> mission-control@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.5
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+Failed to compile.
+
+./src/components/CommandPalette.tsx
+Module not found: Can't resolve '@/convex/_generated/api'
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+> Build failed because of webpack errors

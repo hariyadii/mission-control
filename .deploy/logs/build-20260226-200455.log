@@ -1,0 +1,22 @@
+
+> mission-control@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.5
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./src/app/tasks/page.tsx:159:44
+Type error: Property 'update' does not exist on type '{ list: FunctionReference<"query", "public", {}, { _id: Id<"tasks">; _creationTime: number; description?: string | undefined; updated_at?: string | undefined; workflow_contract_version?: string | undefined; ... 26 more ...; created_at: string; }[], string | undefined>; ... 8 more ...; normalizeBlockedState: Function...'.
+
+[0m [90m 157 |[39m   [36mconst[39m tasks [33m=[39m useQuery(api[33m.[39mtasks[33m.[39mlist)[33m;[39m[0m
+[0m [90m 158 |[39m   [36mconst[39m createTask [33m=[39m useMutation(api[33m.[39mtasks[33m.[39mcreate)[33m;[39m[0m
+[0m[31m[1m>[22m[39m[90m 159 |[39m   [36mconst[39m updateTask [33m=[39m useMutation(api[33m.[39mtasks[33m.[39mupdate)[33m;[39m[0m
+[0m [90m     |[39m                                            [31m[1m^[22m[39m[0m
+[0m [90m 160 |[39m   [36mconst[39m deleteTask [33m=[39m useMutation(api[33m.[39mtasks[33m.[39mremove)[33m;[39m[0m
+[0m [90m 161 |[39m   [36mconst[39m [filterStatus[33m,[39m setFilterStatus] [33m=[39m useState[33m<[39m[33mFilterStatus[39m[33m>[39m([32m"all"[39m)[33m;[39m[0m
+[0m [90m 162 |[39m   [36mconst[39m [filterAssignee[33m,[39m setFilterAssignee] [33m=[39m useState[33m<[39m[33mAssignee[39m [33m|[39m [32m"all"[39m[33m>[39m([32m"all"[39m)[33m;[39m[0m

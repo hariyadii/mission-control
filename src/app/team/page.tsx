@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { Suspense, useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -93,7 +93,55 @@ function Stat({ label, value, colorClass }: { label: string; value: string | num
   );
 }
 
-// ── AgentCard ───────────────────────────────────────────────────────────────
+// ── Team Skeleton ─────────────────────────────────────────────────────────
+
+function AgentCardSkeleton({ agent }: { agent: AgentDef }) {
+  const { border, text, dot } = agent.accent;
+  
+  return (
+    <article
+      className={`panel-glass p-4 border ${border} shadow-lg min-w-0 flex flex-col gap-3 animate-pulse`}
+      aria-label={`${agent.name} agent card`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${dot} opacity-50`} />
+          <div className="bg-stone-100/50 rounded h-5 w-16" />
+          <div className="bg-stone-100/50 rounded h-4 w-12" />
+        </div>
+        <div className="bg-stone-100/50 rounded h-3 w-16" />
+      </div>
+      <div className="bg-stone-100/30 rounded h-12 w-full" />
+      <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+        <div className="bg-stone-100/30 rounded h-8 w-20" />
+        <div className="bg-stone-100/30 rounded h-8 w-20" />
+        <div className="bg-stone-100/30 rounded h-8 w-20" />
+      </div>
+      <div className="flex items-center justify-between pt-1.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+        <div className="bg-stone-100/30 rounded h-3 w-24" />
+        <div className="bg-stone-100/30 rounded h-4 w-16" />
+      </div>
+    </article>
+  );
+}
+
+function SummarySkeleton() {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 animate-pulse">
+      {AGENTS.map((agent) => (
+        <div key={agent.code} className={`panel-tile p-3 border ${agent.accent.border} flex items-center gap-3`}>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${agent.accent.dot} opacity-40`} />
+          <div className="min-w-0">
+            <div className="bg-stone-100/50 rounded h-5 w-12 mb-1" />
+            <div className="bg-stone-100/30 rounded h-3 w-20" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── AgentCard ───────────────────────────────────────────────────────────
 
 function AgentCard({
   agent,
@@ -111,7 +159,6 @@ function AgentCard({
   const { border, text, dot, glow } = agent.accent;
   const isActive = inProgressCount !== null && inProgressCount > 0;
 
-  // Determine colour variant for sparkline
   const sparkColor =
     agent.code === "alex"  ? "amber"   :
     agent.code === "sam"   ? "cyan"    :
@@ -123,15 +170,12 @@ function AgentCard({
       className={`panel-glass p-4 border ${border} shadow-lg ${glow} min-w-0 flex flex-col gap-3`}
       aria-label={`${agent.name} agent card`}
     >
-      {/* Header row */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-          {/* Status dot */}
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${dot} ${isActive ? "animate-pulse" : "opacity-50"}`}
             aria-hidden="true"
           />
-          {/* Name + badge */}
           <span className={`text-sm font-bold ${text}`}>{agent.name}</span>
           <AgentBadge agent={agent.code} size="xs" />
           <StatusBadge status={isActive ? "busy" : "online"} size="xs" />
@@ -141,12 +185,10 @@ function AgentCard({
         </span>
       </div>
 
-      {/* Role description */}
       <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
         {agent.role}
       </p>
 
-      {/* Stats row */}
       <div
         className="flex items-center justify-between pt-2"
         style={{ borderTop: "1px solid var(--border-subtle)" }}
@@ -159,7 +201,6 @@ function AgentCard({
         <Stat label="Backlog" value={backlogCount === null ? "…" : backlogCount} />
         <Stat label="Done" value={doneCount === null ? "…" : doneCount} />
 
-        {/* Sparkline */}
         <div className="flex flex-col items-end gap-0.5">
           <span className="text-[9px] uppercase tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>
             7d
@@ -168,7 +209,6 @@ function AgentCard({
         </div>
       </div>
 
-      {/* Footer */}
       <div
         className="flex items-center justify-between pt-1.5"
         style={{ borderTop: "1px solid var(--border-subtle)" }}
@@ -184,9 +224,9 @@ function AgentCard({
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
+// ── Main Content with Suspense ───────────────────────────────────────────
 
-export default function TeamPage() {
+function TeamContent() {
   const tasks     = useQuery(api.tasks.list);
   const [lastUpdate] = useState(Date.now());
 
@@ -203,8 +243,6 @@ export default function TeamPage() {
 
     for (const t of tasks) {
       const a = t.assigned_to?.toLowerCase() ?? "";
-
-      // Find matching agent (handles aliases like "agent" -> "sam")
       const match = AGENTS.find((ag) => (ag.aliases as readonly string[]).includes(a));
       if (!match) continue;
 
@@ -213,13 +251,11 @@ export default function TeamPage() {
       if (t.status === "done")        bucket.done++;
       if (t.status === "backlog")     bucket.backlog++;
 
-      // Build 7-day sparkline for done tasks
       if (t.status === "done") {
-        // Use _creationTime as proxy for completion (Convex-native ms timestamp)
         const ts = (t as { _creationTime?: number })._creationTime ?? 0;
         const daysAgo = Math.floor((now - ts) / MS_PER_DAY);
         if (daysAgo >= 0 && daysAgo < 7) {
-          const slot = String(6 - daysAgo); // 0 = oldest, 6 = today
+          const slot = String(6 - daysAgo);
           bucket.doneByDay[slot] = (bucket.doneByDay[slot] ?? 0) + 1;
         }
       }
@@ -230,68 +266,91 @@ export default function TeamPage() {
 
   return (
     <div className="flex flex-col gap-5 page-enter">
-
-      {/* ── Command Bar ── */}
       <CommandBar
         title="Team"
         subtitle="Agent roster"
         right={<FreshnessIndicator lastUpdate={lastUpdate} />}
       />
 
-      {/* ── Page Header ── */}
       <PageHeader
         title="Team"
         subtitle="Agent status, workload, and 7-day activity"
         right={<FreshnessIndicator lastUpdate={lastUpdate} />}
       />
 
-      {/* ── Summary row ── */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-          {AGENTS.map((agent) => {
-            const s   = stats[agent.code];
-            const isActive = s.inProgress > 0;
-            return (
-              <div
-                key={agent.code}
-                className={`panel-tile p-3 border ${agent.accent.border} flex items-center gap-3`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${agent.accent.dot} ${isActive ? "animate-pulse" : "opacity-40"}`}
-                  aria-hidden="true"
-                />
-                <div className="min-w-0">
-                  <p className={`text-sm font-bold ${agent.accent.text}`}>{agent.name}</p>
-                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                    {isActive ? `${s.inProgress} running` : "idle"} · {s.done} done
-                  </p>
+      <Suspense fallback={<SummarySkeleton />}>
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            {AGENTS.map((agent) => {
+              const s   = stats[agent.code];
+              const isActive = s.inProgress > 0;
+              return (
+                <div
+                  key={agent.code}
+                  className={`panel-tile p-3 border ${agent.accent.border} flex items-center gap-3`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${agent.accent.dot} ${isActive ? "animate-pulse" : "opacity-40"}`}
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0">
+                    <p className={`text-sm font-bold ${agent.accent.text}`}>{agent.name}</p>
+                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      {isActive ? `${s.inProgress} running` : "idle"} · {s.done} done
+                    </p>
+                  </div>
                 </div>
-              </div>
+              );
+            })}
+          </div>
+        )}
+      </Suspense>
+
+      <Suspense fallback={
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {AGENTS.map((agent) => (
+            <AgentCardSkeleton key={agent.code} agent={agent} />
+          ))}
+        </div>
+      }>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {AGENTS.map((agent) => {
+            const s = stats?.[agent.code];
+            const sparkData = s
+              ? Array.from({ length: 7 }, (_, i) => s.doneByDay[String(i)] ?? 0)
+              : [0, 0, 0, 0, 0, 0, 0];
+
+            return (
+              <AgentCard
+                key={agent.code}
+                agent={agent}
+                inProgressCount={s?.inProgress ?? null}
+                doneCount={s?.done ?? null}
+                backlogCount={s?.backlog ?? null}
+                sparkData={sparkData}
+              />
             );
           })}
         </div>
-      )}
-
-      {/* ── Agent Cards ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {AGENTS.map((agent) => {
-          const s = stats?.[agent.code];
-          const sparkData = s
-            ? Array.from({ length: 7 }, (_, i) => s.doneByDay[String(i)] ?? 0)
-            : [0, 0, 0, 0, 0, 0, 0];
-
-          return (
-            <AgentCard
-              key={agent.code}
-              agent={agent}
-              inProgressCount={s?.inProgress ?? null}
-              doneCount={s?.done ?? null}
-              backlogCount={s?.backlog ?? null}
-              sparkData={sparkData}
-            />
-          );
-        })}
-      </div>
+      </Suspense>
     </div>
+  );
+}
+
+export default function TeamPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col gap-5 page-enter animate-pulse">
+        <div className="h-16 bg-stone-100/30 rounded-lg" />
+        <SummarySkeleton />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {AGENTS.map((agent) => (
+            <AgentCardSkeleton key={agent.code} agent={agent} />
+          ))}
+        </div>
+      </div>
+    }>
+      <TeamContent />
+    </Suspense>
   );
 }

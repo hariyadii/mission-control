@@ -8,7 +8,7 @@
  *  4. Operator Signal — true blockers highlighted, noise de-emphasized
  */
 import Link from "next/link";
-import { useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
@@ -154,7 +154,7 @@ const LANES: LaneConfig[] = [
   { id: "sam",   label: "Sam",   aliases: ["sam", "agent"],      color: { text: "text-cyan-300",   bar: "bg-cyan-400",   dot: "bg-cyan-400",   border: "border-cyan-400/25"   } },
   { id: "lyra",  label: "Lyra",  aliases: ["lyra"],              color: { text: "text-violet-300", bar: "bg-violet-400", dot: "bg-violet-400", border: "border-violet-400/25" } },
   { id: "nova",  label: "Nova",  aliases: ["nova"],              color: { text: "text-rose-300",   bar: "bg-rose-400",   dot: "bg-rose-400",   border: "border-rose-400/25"   } },
-  { id: "ops",   label: "Ops",   aliases: ["ops"],               color: { text: "text-slate-300",  bar: "bg-slate-400",  dot: "bg-slate-400",  border: "border-slate-400/25"  } },
+  { id: "ops",   label: "Ops",   aliases: ["ops"],               color: { text: "text-stone-600",  bar: "bg-stone-400",  dot: "bg-stone-400",  border: "border-stone-400/25"  } },
 ];
 
 type LaneStats = {
@@ -223,7 +223,7 @@ function LaneHealthStrip({ lane, stats }: { lane: LaneConfig; stats: LaneStats }
             </span>
           )}
         </div>
-        <span className="text-[9px] text-slate-500 tabular-nums">
+        <span className="text-[9px] text-stone-500 tabular-nums">
           {formatAge(stats.lastActivityMs)} ago
         </span>
       </div>
@@ -234,7 +234,7 @@ function LaneHealthStrip({ lane, stats }: { lane: LaneConfig; stats: LaneStats }
           className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
             stats.inProgress > 0
               ? "text-cyan-300 bg-cyan-500/15 border border-cyan-500/25"
-              : "text-slate-600 bg-slate-800/50 border border-white/5"
+              : "text-stone-500 bg-stone-100/50 border border-stone-200/50"
           }`}
           title="In progress"
         >
@@ -260,7 +260,7 @@ function LaneHealthStrip({ lane, stats }: { lane: LaneConfig; stats: LaneStats }
         )}
         {stats.oldestBacklogMs > 60 * 60_000 && (
           <span
-            className="text-[9px] text-slate-500 tabular-nums ml-auto"
+            className="text-[9px] text-stone-500 tabular-nums ml-auto"
             title="Age of oldest backlog task"
           >
             oldest {formatAge(stats.oldestBacklogMs)}
@@ -271,7 +271,7 @@ function LaneHealthStrip({ lane, stats }: { lane: LaneConfig; stats: LaneStats }
       {/* Progress bar */}
       {totalWork > 0 && (
         <div
-          className="h-1 rounded-full overflow-hidden bg-slate-800/80 flex"
+          className="h-1 rounded-full overflow-hidden bg-stone-100/80 flex"
           role="img"
           aria-label={`${lane.label}: ${stats.inProgress} running, ${stats.backlog} queued, ${stats.blocked} blocked`}
         >
@@ -315,7 +315,7 @@ function IncidentTimeline({ incidents }: { incidents: Incident[] }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-2 px-0.5">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-stone-500">
             Incidents
           </span>
           <div className="flex items-center gap-1">
@@ -347,8 +347,8 @@ function IncidentTimeline({ incidents }: { incidents: Incident[] }) {
                     ? "bg-rose-500/25 text-rose-300 border border-rose-500/30"
                     : s === "warning"
                     ? "bg-amber-500/25 text-amber-300 border border-amber-500/30"
-                    : "bg-slate-700/60 text-slate-200 border border-white/15"
-                  : "text-slate-600 hover:text-slate-400"
+                    : "bg-stone-200/60 text-stone-700 border border-stone-300/50"
+                  : "text-stone-500 hover:text-stone-500"
               }`}
               aria-pressed={filter === s}
             >
@@ -374,7 +374,7 @@ function IncidentTimeline({ incidents }: { incidents: Incident[] }) {
             >
               <IncidentBadge severity={inc.severity} />
               <div className="flex-1 min-w-0">
-                <p className="text-slate-200 truncate leading-snug font-medium" title={inc.message}>
+                <p className="text-stone-700 truncate leading-snug font-medium" title={inc.message}>
                   {inc.message}
                 </p>
                 {inc.action && (
@@ -388,13 +388,13 @@ function IncidentTimeline({ incidents }: { incidents: Incident[] }) {
                   </p>
                 )}
               </div>
-              <span className="text-[9px] text-slate-500 whitespace-nowrap shrink-0">
+              <span className="text-[9px] text-stone-500 whitespace-nowrap shrink-0">
                 {formatTs(inc.timestamp)}
               </span>
             </div>
           ))
         ) : (
-          <p className="text-[10px] text-slate-600 text-center py-4">
+          <p className="text-[10px] text-stone-500 text-center py-4">
             {filter === "all" ? "No incidents" : `No ${filter} incidents`}
           </p>
         )}
@@ -457,8 +457,8 @@ function BacklogAgingPanel({ tasks }: { tasks: Task[] }) {
   if (backlogTasks.length === 0) {
     return (
       <section className="panel-glass p-2.5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Backlog Aging</p>
-        <p className="text-[10px] text-slate-600 text-center py-3">No backlog tasks</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-1.5">Backlog Aging</p>
+        <p className="text-[10px] text-stone-500 text-center py-3">No backlog tasks</p>
       </section>
     );
   }
@@ -466,10 +466,10 @@ function BacklogAgingPanel({ tasks }: { tasks: Task[] }) {
   return (
     <section className="panel-glass p-2.5" aria-label="Backlog aging heatmap">
       <div className="flex items-center justify-between mb-2 px-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-stone-500">
           Backlog Aging
         </span>
-        <span className="text-[9px] text-slate-500 tabular-nums">
+        <span className="text-[9px] text-stone-500 tabular-nums">
           {backlogTasks.length} tasks
         </span>
       </div>
@@ -480,7 +480,7 @@ function BacklogAgingPanel({ tasks }: { tasks: Task[] }) {
           <div key={b.label} className="flex items-center gap-1">
             <span className={`w-2 h-2 rounded-sm shrink-0 ${b.color}`} aria-hidden="true" />
             <span className={`text-[8px] font-medium ${b.textColor}`}>{b.label}</span>
-            <span className="text-[8px] text-slate-600 tabular-nums">({totalByBucket[i]})</span>
+            <span className="text-[8px] text-stone-500 tabular-nums">({totalByBucket[i]})</span>
           </div>
         ))}
       </div>
@@ -496,7 +496,7 @@ function BacklogAgingPanel({ tasks }: { tasks: Task[] }) {
               <span className={`text-[9px] font-bold w-8 shrink-0 ${lane.color.text}`}>{lane.label}</span>
               {/* Stacked bar */}
               <div
-                className="flex-1 h-4 rounded overflow-hidden flex bg-slate-900/60"
+                className="flex-1 h-4 rounded overflow-hidden flex bg-stone-50/60"
                 role="img"
                 aria-label={`${lane.label}: ${total} backlog tasks`}
               >
@@ -516,7 +516,7 @@ function BacklogAgingPanel({ tasks }: { tasks: Task[] }) {
                   ) : null;
                 })}
               </div>
-              <span className="text-[9px] text-slate-500 tabular-nums w-5 text-right shrink-0">{total}</span>
+              <span className="text-[9px] text-stone-500 tabular-nums w-5 text-right shrink-0">{total}</span>
             </div>
           );
         })}
@@ -544,7 +544,7 @@ function TaskRow({
 
   return (
     <div
-      className={`flex items-center gap-2 px-2 py-1.5 text-xs border-b border-white/5 last:border-0 ${
+      className={`flex items-center gap-2 px-2 py-1.5 text-xs border-b border-stone-200/50 last:border-0 ${
         isTrueBlk
           ? "bg-rose-500/6"
           : isHighStreak
@@ -557,14 +557,14 @@ function TaskRow({
       {showAge && (
         <span
           className={`w-6 text-[10px] tabular-nums shrink-0 ${
-            isTrueBlk ? "text-rose-400" : isStale ? "text-amber-400" : "text-slate-500"
+            isTrueBlk ? "text-rose-400" : isStale ? "text-amber-400" : "text-stone-500"
           }`}
         >
           {age}
         </span>
       )}
       <span
-        className={`flex-1 truncate ${isTrueBlk ? "text-rose-200" : "text-slate-200"}`}
+        className={`flex-1 truncate ${isTrueBlk ? "text-rose-200" : "text-stone-700"}`}
         title={task.title}
       >
         {task.title}
@@ -603,7 +603,7 @@ function QueueSection({
       <div className="flex items-center justify-between mb-2 px-0.5">
         <div className="flex items-center gap-2">
           <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden="true" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">{label}</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-stone-600">{label}</span>
         </div>
         <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${badgeColor}`}>
           {tasks.length}
@@ -613,7 +613,7 @@ function QueueSection({
         {tasks.length > 0 ? (
           tasks.map((t) => <TaskRow key={t._id} task={t} showAge />)
         ) : (
-          <p className="text-[10px] text-slate-600 text-center py-3">Empty</p>
+          <p className="text-[10px] text-stone-500 text-center py-3">Empty</p>
         )}
       </div>
     </section>
@@ -641,7 +641,7 @@ function TrueBlockerBanner({ tasks }: { tasks: Task[] }) {
         <span className="text-[10px] font-bold uppercase tracking-widest text-rose-300">
           True Blockers ({trueBlockers.length})
         </span>
-        <span className="text-[9px] text-slate-500 ml-auto">Requires operator attention</span>
+        <span className="text-[9px] text-stone-500 ml-auto">Requires operator attention</span>
       </div>
       <div className="space-y-0.5">
         {trueBlockers.map((t) => (
@@ -662,15 +662,249 @@ function TrueBlockerBanner({ tasks }: { tasks: Task[] }) {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
+// ── Overview Skeletons ────────────────────────────────────────────────────
+
+function OverviewSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 page-enter animate-pulse">
+      <PageHeader
+        title="Mission Control"
+        subtitle="Autonomous AI operations dashboard"
+        right={<div className="bg-stone-100/50 rounded h-4 w-32" />}
+      />
+      <LaneHealthSkeleton />
+      <FilterPipelineSkeleton />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="space-y-3"><div className="h-32 bg-stone-100/30 rounded-lg" /><div className="h-48 bg-stone-100/30 rounded-lg" /></div>
+        <div className="space-y-3"><div className="h-32 bg-stone-100/30 rounded-lg" /><div className="h-24 bg-stone-100/30 rounded-lg" /></div>
+        <div className="space-y-3"><div className="h-40 bg-stone-100/30 rounded-lg" /><div className="h-40 bg-stone-100/30 rounded-lg" /></div>
+      </div>
+    </div>
+  );
+}
+
+function LaneHealthSkeleton() {
+  const LANE_COLORS = ["bg-amber-400", "bg-cyan-400", "bg-violet-400", "bg-rose-400", "bg-stone-400"];
+  return (
+    <section aria-label="Lane health overview">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">Lane Health</p>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        {LANE_COLORS.map((color, i) => (
+          <div key={i} className="panel-soft p-2.5 border border-stone-200/50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`w-1.5 h-1.5 rounded-full ${color} opacity-50`} />
+              <div className="h-3 w-8 bg-stone-200/50 rounded" />
+            </div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="h-4 w-10 bg-stone-200/50 rounded" />
+              <div className="h-4 w-10 bg-stone-200/50 rounded" />
+            </div>
+            <div className="h-1 rounded-full bg-stone-100/80 overflow-hidden">
+              <div className="h-full bg-stone-200/50 rounded-full" style={{ width: "60%" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FilterPipelineSkeleton() {
+  return (
+    <>
+      {/* Filter Bar Skeleton */}
+      <div className="flex flex-wrap items-center gap-2 p-2.5 panel-glass">
+        <div className="h-7 w-32 bg-stone-100/50 rounded-lg" />
+        <div className="h-7 w-24 bg-stone-100/50 rounded-lg" />
+        <div className="h-7 w-24 bg-stone-100/50 rounded-lg" />
+        <div className="ml-auto h-4 w-16 bg-stone-100/50 rounded" />
+      </div>
+
+      {/* Pipeline Counts Skeleton */}
+      <SectionCard title="Pipeline">
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { label: "Sugg", color: "bg-fuchsia-500/15" },
+            { label: "Queue", color: "bg-indigo-500/15" },
+            { label: "Run", color: "bg-cyan-500/15" },
+            { label: "Done", color: "bg-emerald-500/15" },
+          ].map((s) => (
+            <div key={s.label} className={`text-center p-2 rounded-lg ${s.color} border border-stone-200/50`}>
+              <p className="text-[9px] uppercase tracking-widest font-semibold text-stone-500">{s.label}</p>
+              <p className="text-xl font-bold text-stone-500 tabular-nums leading-tight mt-0.5">—</p>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+    </>
+  );
+}
+
+// ── New Suspense-wrapped Sections for Streaming ───────────────────────────
+
 export default function Home() {
+  return (
+    <div className="flex flex-col gap-4 page-enter">
+      <PageHeader
+        title="Mission Control"
+        subtitle="Autonomous AI operations dashboard"
+        right={
+          <div className="flex items-center gap-3">
+            <FreshnessIndicator lastUpdate={Date.now()} />
+            <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
+              SYS <HealthDot ok={true} />
+            </div>
+          </div>
+        }
+      />
+
+      {/* Lane Health - separate Suspense for streaming */}
+      <Suspense fallback={<LaneHealthSkeleton />}>
+        <LaneHealthSection />
+      </Suspense>
+
+      {/* Filter Pipeline - separate Suspense for streaming */}
+      <Suspense fallback={<FilterPipelineSkeleton />}>
+        <FilterPipelineSection />
+      </Suspense>
+
+      {/* Main 3-column content */}
+      <Suspense fallback={
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="space-y-3"><div className="h-32 bg-stone-100/30 rounded-lg" /><div className="h-48 bg-stone-100/30 rounded-lg" /></div>
+          <div className="space-y-3"><div className="h-32 bg-stone-100/30 rounded-lg" /><div className="h-24 bg-stone-100/30 rounded-lg" /></div>
+          <div className="space-y-3"><div className="h-40 bg-stone-100/30 rounded-lg" /><div className="h-40 bg-stone-100/30 rounded-lg" /></div>
+        </div>
+      }>
+        <MainContent />
+      </Suspense>
+    </div>
+  );
+}
+
+// ── Lane Health Section ───────────────────────────────────────────────────
+function LaneHealthSection() {
+  const tasks = useQuery(api.tasks.list);
+  const allTasks = useMemo(() => (tasks as Task[] | undefined) ?? [], [tasks]);
+
+  return (
+    <section aria-label="Lane health overview">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">
+        Lane Health
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        {LANES.map((lane) => (
+          <LaneHealthStrip
+            key={lane.id}
+            lane={lane}
+            stats={computeLaneStats(allTasks, lane.aliases)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── Filter Pipeline Section ───────────────────────────────────────────────
+function FilterPipelineSection() {
+  const tasks = useQuery(api.tasks.list);
+  const allTasks = useMemo(() => (tasks as Task[] | undefined) ?? [], [tasks]);
+
+  const [agentFilter, setAgentFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredTasks = useMemo(() => {
+    return allTasks.filter((t) => {
+      if (agentFilter !== "all" && t.assigned_to?.toLowerCase() !== agentFilter) return false;
+      if (statusFilter !== "all" && t.status !== statusFilter) return false;
+      if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      return true;
+    });
+  }, [allTasks, agentFilter, statusFilter, searchQuery]);
+
+  const pCounts = {
+    suggested: filteredTasks.filter((t) => t.status === "suggested").length,
+    backlog: filteredTasks.filter((t) => t.status === "backlog").length,
+    running: filteredTasks.filter((t) => t.status === "in_progress").length,
+    done: filteredTasks.filter((t) => t.status === "done").length,
+  };
+
+  return (
+    <>
+      {/* Filter Bar */}
+      <div className="flex flex-wrap items-center gap-2 p-2.5 panel-glass">
+        <FilterInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search tasks..."
+          className="text-xs"
+        />
+        <FilterSelect value={agentFilter} onChange={setAgentFilter} ariaLabel="Filter by agent" className="py-1.5">
+          <option value="all">All agents</option>
+          <option value="sam">Sam</option>
+          <option value="lyra">Lyra</option>
+          <option value="alex">Alex</option>
+          <option value="nova">Nova</option>
+          <option value="ops">Ops</option>
+        </FilterSelect>
+        <FilterSelect value={statusFilter} onChange={setStatusFilter} ariaLabel="Filter by status" className="py-1.5">
+          <option value="all">All status</option>
+          <option value="suggested">Suggested</option>
+          <option value="backlog">Backlog</option>
+          <option value="in_progress">Running</option>
+          <option value="blocked">Blocked</option>
+          <option value="done">Done</option>
+        </FilterSelect>
+        {(agentFilter !== "all" || statusFilter !== "all" || searchQuery) && (
+          <button
+            onClick={() => { setAgentFilter("all"); setStatusFilter("all"); setSearchQuery(""); }}
+            className="btn-ghost text-[10px]"
+            aria-label="Clear filters"
+          >
+            ✕ Clear
+          </button>
+        )}
+        <span className="ml-auto text-[10px] text-stone-500 tabular-nums">
+          {filteredTasks.length} tasks
+        </span>
+      </div>
+
+      {/* Pipeline Counts */}
+      <SectionCard title="Pipeline">
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { key: "suggested", label: "Sugg", color: "text-fuchsia-300", bg: "bg-fuchsia-500/15 border border-fuchsia-500/25", n: pCounts.suggested },
+            { key: "backlog", label: "Queue", color: "text-indigo-300", bg: "bg-indigo-500/15 border border-indigo-500/25", n: pCounts.backlog },
+            { key: "running", label: "Run", color: "text-cyan-300", bg: "bg-cyan-500/15 border border-cyan-500/25", n: pCounts.running },
+            { key: "done", label: "Done", color: "text-emerald-300", bg: "bg-emerald-500/15 border border-emerald-500/25", n: pCounts.done },
+          ].map((s) => (
+            <Link
+              key={s.key}
+              href={"/tasks?status=" + (s.key === "running" ? "in_progress" : s.key)}
+              className={"text-center p-2 rounded-lg " + s.bg + " hover:brightness-110 transition-all duration-150"}
+              aria-label={s.label + ": " + s.n + " tasks"}
+            >
+              <p className={"text-[9px] uppercase tracking-widest font-semibold " + s.color}>{s.label}</p>
+              <p className="text-xl font-bold text-stone-800 tabular-nums leading-tight mt-0.5">{s.n}</p>
+            </Link>
+          ))}
+        </div>
+      </SectionCard>
+    </>
+  );
+}
+
+// ── Main Content Section (renamed from HomeContent) ───────────────────────
+function MainContent() {
   const tasks = useQuery(api.tasks.list);
   const [autonomy, setAutonomy] = useState<AutonomyStatus | null>(null);
-  const [capital,  setCapital]  = useState<CapitalStatus  | null>(null);
+  const [capital, setCapital] = useState<CapitalStatus | null>(null);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
 
-  const [agentFilter,  setAgentFilter]  = useState("all");
+  const [agentFilter, setAgentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [searchQuery,  setSearchQuery]  = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -773,7 +1007,7 @@ export default function Home() {
         right={
           <>
             <FreshnessIndicator lastUpdate={lastUpdate} />
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
               SYS <HealthDot ok={autonomy?.ok ?? false} />
             </div>
           </>
@@ -782,60 +1016,6 @@ export default function Home() {
 
       {/* ── True Blocker Alert Banner ── */}
       <TrueBlockerBanner tasks={allTasks} />
-
-      {/* ── Lane Health Strips ── */}
-      <section aria-label="Lane health overview">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-          Lane Health
-        </p>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          {LANES.map((lane) => (
-            <LaneHealthStrip
-              key={lane.id}
-              lane={lane}
-              stats={computeLaneStats(allTasks, lane.aliases)}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* ── Filter Bar ── */}
-      <div className="flex flex-wrap items-center gap-2 p-2.5 panel-glass">
-        <FilterInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search tasks..."
-          className="text-xs"
-        />
-        <FilterSelect value={agentFilter} onChange={setAgentFilter} ariaLabel="Filter by agent" className="py-1.5">
-          <option value="all">All agents</option>
-          <option value="sam">Sam</option>
-          <option value="lyra">Lyra</option>
-          <option value="alex">Alex</option>
-          <option value="nova">Nova</option>
-          <option value="ops">Ops</option>
-        </FilterSelect>
-        <FilterSelect value={statusFilter} onChange={setStatusFilter} ariaLabel="Filter by status" className="py-1.5">
-          <option value="all">All status</option>
-          <option value="suggested">Suggested</option>
-          <option value="backlog">Backlog</option>
-          <option value="in_progress">Running</option>
-          <option value="blocked">Blocked</option>
-          <option value="done">Done</option>
-        </FilterSelect>
-        {(agentFilter !== "all" || statusFilter !== "all" || searchQuery) && (
-          <button
-            onClick={() => { setAgentFilter("all"); setStatusFilter("all"); setSearchQuery(""); }}
-            className="btn-ghost text-[10px]"
-            aria-label="Clear filters"
-          >
-            ✕ Clear
-          </button>
-        )}
-        <span className="ml-auto text-[10px] text-slate-500 tabular-nums">
-          {filteredTasks.length} tasks
-        </span>
-      </div>
 
       {/* ── 3-Column Grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -857,7 +1037,7 @@ export default function Home() {
                   aria-label={`${s.label}: ${s.n} tasks`}
                 >
                   <p className={`text-[9px] uppercase tracking-widest font-semibold ${s.color}`}>{s.label}</p>
-                  <p className="text-xl font-bold text-slate-100 tabular-nums leading-tight mt-0.5">{s.n}</p>
+                  <p className="text-xl font-bold text-stone-800 tabular-nums leading-tight mt-0.5">{s.n}</p>
                 </Link>
               ))}
             </div>
@@ -868,7 +1048,7 @@ export default function Home() {
             <section className="panel-glass p-2.5">
               <div className="flex items-center gap-1.5 mb-2">
                 <AgentBadge agent="sam" size="xs" />
-                <span className="text-[9px] text-slate-500">Ops</span>
+                <span className="text-[9px] text-stone-500">Ops</span>
                 <HealthDot ok />
               </div>
               <div className="grid grid-cols-2 gap-1">
@@ -879,7 +1059,7 @@ export default function Home() {
             <section className="panel-glass p-2.5">
               <div className="flex items-center gap-1.5 mb-2">
                 <AgentBadge agent="lyra" size="xs" />
-                <span className="text-[9px] text-slate-500">Capital</span>
+                <span className="text-[9px] text-stone-500">Capital</span>
                 <HealthDot ok={capital?.portfolio?.status === "ok"} />
               </div>
               <div className="grid grid-cols-2 gap-1">
@@ -942,7 +1122,7 @@ export default function Home() {
           {/* Done */}
           <section className="panel-glass p-2.5">
             <div className="flex items-center justify-between mb-2 px-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Completed</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Completed</span>
               <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-[9px] text-emerald-300 font-bold border border-emerald-500/30">
                 {done.length}
               </span>
@@ -951,7 +1131,7 @@ export default function Home() {
               {done.length > 0 ? (
                 done.map((t) => <TaskRow key={t._id} task={t} showOwner showAge={false} />)
               ) : (
-                <p className="text-[10px] text-slate-600 text-center py-4">Nothing yet</p>
+                <p className="text-[10px] text-stone-500 text-center py-4">Nothing yet</p>
               )}
             </div>
           </section>
@@ -959,25 +1139,25 @@ export default function Home() {
           {/* Plugin sparklines */}
           {autonomy?.pluginMetrics?.byPlugin && autonomy.pluginMetrics.byPlugin.length > 0 && (
             <section className="panel-glass p-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Plugins</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">Plugins</p>
               <div className="space-y-1.5">
                 {autonomy.pluginMetrics.byPlugin.slice(0, 5).map((item) => {
                   const maxVal = Math.max(...item.sparkline.filter((x) => x > 0), 1);
                   return (
                     <div key={item.plugin} className="flex items-center gap-2">
-                      <span className="text-[9px] text-slate-400 truncate w-[80px] shrink-0" title={item.plugin}>
+                      <span className="text-[9px] text-stone-500 truncate w-[80px] shrink-0" title={item.plugin}>
                         {item.plugin.split("/").pop()}
                       </span>
                       <div className="flex-1 flex items-end gap-px h-3">
                         {item.sparkline.slice(0, 14).map((v, i) => (
                           <div
                             key={i}
-                            className={`flex-1 rounded-sm ${v > 0 ? "bg-emerald-500/60" : "bg-slate-800"}`}
+                            className={`flex-1 rounded-sm ${v > 0 ? "bg-emerald-500/60" : "bg-stone-100"}`}
                             style={{ height: `${v > 0 ? Math.max(20, (v / maxVal) * 100) : 20}%` }}
                           />
                         ))}
                       </div>
-                      <span className="text-[9px] text-slate-500 tabular-nums w-10 text-right shrink-0">
+                      <span className="text-[9px] text-stone-500 tabular-nums w-10 text-right shrink-0">
                         {item.success}/{item.runs}
                       </span>
                     </div>
@@ -992,8 +1172,8 @@ export default function Home() {
       {/* ── Mission Footer ── */}
       <div className="panel-glass bg-gradient-to-r from-indigo-500/8 to-cyan-500/8 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-slate-600 font-semibold">Mission</p>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-[10px] uppercase tracking-widest text-stone-500 font-semibold">Mission</p>
+          <p className="text-xs text-stone-500 mt-0.5">
             Autonomous AI ops — reduce manual work, ship value 24/7, build compounding systems.
           </p>
         </div>

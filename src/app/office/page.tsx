@@ -70,14 +70,14 @@ function DeskCard({ desk }: { desk: (typeof desks)[0] }) {
           <AgentBadge agent={desk.code} size="sm" />
           <span className={`text-sm font-semibold ${desk.accent.text}`}>{desk.name}</span>
         </div>
-        <span className="text-[10px] text-slate-500">{desk.channel}</span>
+        <span className="text-[10px] text-stone-500">{desk.channel}</span>
       </div>
-      <p className="text-xs text-slate-400 mb-3 leading-relaxed">{desk.task}</p>
+      <p className="text-xs text-stone-500 mb-3 leading-relaxed">{desk.task}</p>
 
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="w-full py-3 text-xs font-medium text-slate-400 border border-dashed border-white/10 rounded-lg hover:border-white/25 hover:text-slate-200 transition min-h-[44px]"
+          className="w-full py-3 text-xs font-medium text-stone-500 border border-dashed border-stone-300/50 rounded-lg hover:border-stone-300/80 hover:text-stone-700 transition min-h-[44px]"
         >
           + Create work order
         </button>
@@ -124,10 +124,10 @@ export default function OfficePage() {
       </div>
       <section className="panel-glass p-4">
         <p className="section-label mb-2">How it works</p>
-        <ul className="text-xs text-slate-400 space-y-1.5">
-          <li className="flex items-start gap-2"><span className="text-slate-600 mt-0.5">·</span> Select an agent and describe the work needed</li>
-          <li className="flex items-start gap-2"><span className="text-slate-600 mt-0.5">·</span> Task enters backlog after submission</li>
-          <li className="flex items-start gap-2"><span className="text-slate-600 mt-0.5">·</span> Agent picks it up on the next worker cycle</li>
+        <ul className="text-xs text-stone-500 space-y-1.5">
+          <li className="flex items-start gap-2"><span className="text-stone-500 mt-0.5">·</span> Select an agent and describe the work needed</li>
+          <li className="flex items-start gap-2"><span className="text-stone-500 mt-0.5">·</span> Task enters backlog after submission</li>
+          <li className="flex items-start gap-2"><span className="text-stone-500 mt-0.5">·</span> Agent picks it up on the next worker cycle</li>
         </ul>
       </section>
     </div>

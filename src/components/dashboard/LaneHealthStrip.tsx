@@ -43,7 +43,7 @@ export const LANES: LaneConfig[] = [
   { id: "sam",   label: "Sam",   aliases: ["sam", "agent"],      color: { text: "text-cyan-300",   bar: "bg-cyan-400",   dot: "bg-cyan-400",   border: "border-cyan-400/25"   } },
   { id: "lyra",  label: "Lyra",  aliases: ["lyra"],              color: { text: "text-violet-300", bar: "bg-violet-400", dot: "bg-violet-400", border: "border-violet-400/25" } },
   { id: "nova",  label: "Nova",  aliases: ["nova"],              color: { text: "text-rose-300",   bar: "bg-rose-400",   dot: "bg-rose-400",   border: "border-rose-400/25"   } },
-  { id: "ops",   label: "Ops",   aliases: ["ops"],               color: { text: "text-slate-300",  bar: "bg-slate-400",  dot: "bg-slate-400",  border: "border-slate-400/25"  } },
+  { id: "ops",   label: "Ops",   aliases: ["ops"],               color: { text: "text-stone-600",  bar: "bg-stone-400",  dot: "bg-stone-400",  border: "border-stone-400/25"  } },
 ];
 
 const NOISE_REASONS = new Set([
@@ -149,7 +149,7 @@ const LaneHealthStrip = React.memo(function LaneHealthStrip({
             </span>
           )}
         </div>
-        <span className="text-[9px] text-slate-500 tabular-nums">
+        <span className="text-[9px] text-stone-500 tabular-nums">
           {formatAge(stats.lastActivityMs)} ago
         </span>
       </div>
@@ -160,7 +160,7 @@ const LaneHealthStrip = React.memo(function LaneHealthStrip({
           className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
             stats.inProgress > 0
               ? "text-cyan-300 bg-cyan-500/15 border border-cyan-500/25"
-              : "text-slate-600 bg-slate-800/50 border border-white/5"
+              : "text-stone-500 bg-stone-100/50 border border-stone-200/50"
           }`}
           title="In progress"
         >
@@ -186,7 +186,7 @@ const LaneHealthStrip = React.memo(function LaneHealthStrip({
         )}
         {stats.oldestBacklogMs > 60 * 60_000 && (
           <span
-            className="text-[9px] text-slate-500 tabular-nums ml-auto"
+            className="text-[9px] text-stone-500 tabular-nums ml-auto"
             title="Age of oldest backlog task"
           >
             oldest {formatAge(stats.oldestBacklogMs)}
@@ -197,7 +197,7 @@ const LaneHealthStrip = React.memo(function LaneHealthStrip({
       {/* Progress bar */}
       {totalWork > 0 && (
         <div
-          className="h-1 rounded-full overflow-hidden bg-slate-800/80 flex"
+          className="h-1 rounded-full overflow-hidden bg-stone-100/80 flex"
           role="img"
           aria-label={`${lane.label}: ${stats.inProgress} running, ${stats.backlog} queued, ${stats.blocked} blocked`}
         >

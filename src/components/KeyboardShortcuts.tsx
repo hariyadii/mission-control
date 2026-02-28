@@ -120,14 +120,14 @@ export default function KeyboardShortcuts() {
       onClick={() => setIsOpen(false)}
     >
       <div 
-        className="w-full max-w-md rounded-xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl backdrop-blur-xl"
+        className="w-full max-w-md rounded-xl border border-stone-300/50 bg-stone-50/95 p-6 shadow-2xl backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-100">Keyboard Shortcuts</h2>
+          <h2 className="text-lg font-semibold text-stone-800">Keyboard Shortcuts</h2>
           <button
             onClick={() => setIsOpen(false)}
-            className="rounded-lg px-2 py-1 text-sm text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            className="rounded-lg px-2 py-1 text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-700"
           >
             ✕
           </button>
@@ -136,12 +136,12 @@ export default function KeyboardShortcuts() {
         <div className="space-y-4">
           {categories.map((category) => (
             <div key={category}>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">{category}</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-stone-500">{category}</p>
               <div className="space-y-1">
                 {SHORTCUTS.filter((s) => s.category === category).map((shortcut) => (
                   <div key={shortcut.key} className="flex items-center justify-between py-1">
-                    <span className="text-sm text-slate-300">{shortcut.label}</span>
-                    <kbd className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-mono text-slate-300 border border-slate-700">
+                    <span className="text-sm text-stone-600">{shortcut.label}</span>
+                    <kbd className="rounded-md bg-stone-100 px-2 py-0.5 text-xs font-mono text-stone-600 border border-stone-300">
                       {shortcut.key}
                     </kbd>
                   </div>
@@ -151,8 +151,8 @@ export default function KeyboardShortcuts() {
           ))}
         </div>
 
-        <p className="mt-4 text-center text-xs text-slate-500">
-          Press <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-xs font-mono text-slate-400">?</kbd> anytime to show this help
+        <p className="mt-4 text-center text-xs text-stone-500">
+          Press <kbd className="rounded bg-stone-100 px-1.5 py-0.5 text-xs font-mono text-stone-500">?</kbd> anytime to show this help
         </p>
       </div>
     </div>

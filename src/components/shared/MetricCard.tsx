@@ -81,7 +81,7 @@ const TREND_ICON:  Record<MetricCardTrend, string> = { up: "↑", down: "↓", s
 const TREND_COLOR: Record<MetricCardTrend, string> = {
   up:     "text-emerald-400",
   down:   "text-rose-400",
-  stable: "text-slate-500",
+  stable: "text-stone-500",
 };
 
 export const MetricCard = memo(function MetricCard({
@@ -143,7 +143,7 @@ export const Sparkline = memo(function Sparkline({
       {data.map((v, i) => (
         <div
           key={i}
-          className={`flex-1 rounded-sm ${v > 0 ? SPARKLINE_COLOR[color] : "bg-slate-800"}`}
+          className={`flex-1 rounded-sm ${v > 0 ? SPARKLINE_COLOR[color] : "bg-stone-100"}`}
           style={{ height: `${v > 0 ? Math.max(18, (v / maxVal) * 100) : 15}%` }}
         />
       ))}

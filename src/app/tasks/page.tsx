@@ -20,6 +20,22 @@ import {
   FilterInput,
   FilterSelect,
 } from "@/components/ui";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -198,13 +214,13 @@ function parseTraceEvents(task: Task): TraceEvent[] {
 }
 
 const TRACE_STYLE: Record<TraceEvent["kind"], { dot: string; label: string; textColor: string }> = {
-  created:      { dot: "bg-slate-500",   label: "Created",    textColor: "text-slate-400"  },
+  created:      { dot: "bg-stone-500",   label: "Created",    textColor: "text-stone-500"  },
   claim:        { dot: "bg-cyan-400",    label: "Claimed",    textColor: "text-cyan-300"   },
   heartbeat:    { dot: "bg-indigo-400",  label: "Heartbeat",  textColor: "text-indigo-300" },
   complete:     { dot: "bg-emerald-400", label: "Completed",  textColor: "text-emerald-300"},
   stale_requeue:{ dot: "bg-amber-400",   label: "Stale/Req",  textColor: "text-amber-300"  },
   blocked:      { dot: "bg-rose-400",    label: "Blocked",    textColor: "text-rose-300"   },
-  note:         { dot: "bg-slate-600",   label: "Note",       textColor: "text-slate-400"  },
+  note:         { dot: "bg-stone-500",   label: "Note",       textColor: "text-stone-500"  },
 };
 
 function ExecutionTraceDrawer({
@@ -250,14 +266,14 @@ function ExecutionTraceDrawer({
       <div
         ref={drawerRef}
         tabIndex={-1}
-        className="relative ml-auto w-full max-w-md h-full bg-[#070c1a]/98 border-l border-white/10 flex flex-col shadow-2xl overflow-hidden"
+        className="relative ml-auto w-full max-w-md h-full bg-[#070c1a]/98 border-l border-stone-300/50 flex flex-col shadow-2xl overflow-hidden"
         style={{ outline: "none" }}
       >
         {/* Header */}
-        <div className="px-4 py-3 border-b border-white/8 flex items-start justify-between gap-3 shrink-0">
+        <div className="px-4 py-3 border-b border-stone-200/50 flex items-start justify-between gap-3 shrink-0">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Execution Trace</p>
-            <p className="text-sm font-semibold text-slate-100 leading-snug line-clamp-2" title={task.title}>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-1">Execution Trace</p>
+            <p className="text-sm font-semibold text-stone-800 leading-snug line-clamp-2" title={task.title}>
               {task.title}
             </p>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -288,34 +304,34 @@ function ExecutionTraceDrawer({
         <div className="px-4 py-2.5 border-b border-white/6 shrink-0">
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px]">
             <div>
-              <span className="text-slate-600 uppercase tracking-wider font-semibold">Created</span>
-              <span className="block text-slate-300 mt-0.5">{fmtDate(task.created_at)}</span>
+              <span className="text-stone-500 uppercase tracking-wider font-semibold">Created</span>
+              <span className="block text-stone-600 mt-0.5">{fmtDate(task.created_at)}</span>
             </div>
             <div>
-              <span className="text-slate-600 uppercase tracking-wider font-semibold">Updated</span>
-              <span className="block text-slate-300 mt-0.5">{fmtDate(task.updated_at)}</span>
+              <span className="text-stone-500 uppercase tracking-wider font-semibold">Updated</span>
+              <span className="block text-stone-600 mt-0.5">{fmtDate(task.updated_at)}</span>
             </div>
             {task.owner && (
               <div>
-                <span className="text-slate-600 uppercase tracking-wider font-semibold">Owner</span>
-                <span className="block text-slate-300 mt-0.5">{task.owner}</span>
+                <span className="text-stone-500 uppercase tracking-wider font-semibold">Owner</span>
+                <span className="block text-stone-600 mt-0.5">{task.owner}</span>
               </div>
             )}
             {task.lease_until && (
               <div>
-                <span className="text-slate-600 uppercase tracking-wider font-semibold">Lease until</span>
-                <span className="block text-slate-300 mt-0.5">{fmtTime(task.lease_until)}</span>
+                <span className="text-stone-500 uppercase tracking-wider font-semibold">Lease until</span>
+                <span className="block text-stone-600 mt-0.5">{fmtTime(task.lease_until)}</span>
               </div>
             )}
             {task.retry_count_total !== undefined && task.retry_count_total > 0 && (
               <div>
-                <span className="text-slate-600 uppercase tracking-wider font-semibold">Retries</span>
+                <span className="text-stone-500 uppercase tracking-wider font-semibold">Retries</span>
                 <span className="block text-amber-300 mt-0.5">{task.retry_count_total}</span>
               </div>
             )}
             {task.artifact_path && (
               <div className="col-span-2">
-                <span className="text-slate-600 uppercase tracking-wider font-semibold">Artifact</span>
+                <span className="text-stone-500 uppercase tracking-wider font-semibold">Artifact</span>
                 <span className="block text-emerald-300 mt-0.5 font-mono text-[9px] truncate" title={task.artifact_path}>
                   {task.artifact_path}
                 </span>
@@ -323,7 +339,7 @@ function ExecutionTraceDrawer({
             )}
             {task.blocked_reason && (
               <div className="col-span-2">
-                <span className="text-slate-600 uppercase tracking-wider font-semibold">Blocked reason</span>
+                <span className="text-stone-500 uppercase tracking-wider font-semibold">Blocked reason</span>
                 <span className={`block mt-0.5 ${isTrueBlk ? "text-rose-300" : "text-amber-300"}`}>
                   {task.blocked_reason.replace(/_/g, " ")}
                 </span>
@@ -331,13 +347,13 @@ function ExecutionTraceDrawer({
             )}
             {task.unblock_signal && (
               <div className="col-span-2">
-                <span className="text-slate-600 uppercase tracking-wider font-semibold">Unblock signal</span>
+                <span className="text-stone-500 uppercase tracking-wider font-semibold">Unblock signal</span>
                 <span className="block text-cyan-300 mt-0.5">{task.unblock_signal.replace(/_/g, " ")}</span>
               </div>
             )}
             {task.remediation_task_id && (
               <div className="col-span-2">
-                <span className="text-slate-600 uppercase tracking-wider font-semibold">Remediation task</span>
+                <span className="text-stone-500 uppercase tracking-wider font-semibold">Remediation task</span>
                 <span className="block text-violet-300 mt-0.5 font-mono text-[9px] truncate" title={task.remediation_task_id}>
                   {task.remediation_task_id}
                 </span>
@@ -348,10 +364,10 @@ function ExecutionTraceDrawer({
 
         {/* Timeline */}
         <div className="flex-1 overflow-y-auto px-4 py-3">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Lifecycle Events</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Lifecycle Events</p>
 
           {events.length === 0 ? (
-            <p className="text-[10px] text-slate-600 text-center py-6">No lifecycle events parsed</p>
+            <p className="text-[10px] text-stone-500 text-center py-6">No lifecycle events parsed</p>
           ) : (
             <div className="relative">
               {/* Vertical connector line */}
@@ -372,10 +388,10 @@ function ExecutionTraceDrawer({
                       <div>
                         <div className="flex items-baseline gap-2">
                           <span className={`text-[10px] font-bold ${style.textColor}`}>{style.label}</span>
-                          <span className="text-[9px] text-slate-600 tabular-nums">{fmtTime(ev.ts)}</span>
+                          <span className="text-[9px] text-stone-500 tabular-nums">{fmtTime(ev.ts)}</span>
                         </div>
                         {ev.detail && (
-                          <p className="text-[10px] text-slate-400 mt-0.5 leading-snug line-clamp-2" title={ev.detail}>
+                          <p className="text-[10px] text-stone-500 mt-0.5 leading-snug line-clamp-2" title={ev.detail}>
                             {ev.detail}
                           </p>
                         )}
@@ -392,11 +408,11 @@ function ExecutionTraceDrawer({
         {task.description && (
           <div className="px-4 py-2.5 border-t border-white/6 shrink-0">
             <details className="group">
-              <summary className="text-[10px] font-semibold text-slate-500 cursor-pointer hover:text-slate-300 list-none flex items-center gap-1.5 select-none">
+              <summary className="text-[10px] font-semibold text-stone-500 cursor-pointer hover:text-stone-600 list-none flex items-center gap-1.5 select-none">
                 <span className="group-open:rotate-90 transition-transform duration-150 text-xs">▶</span>
                 Raw description
               </summary>
-              <pre className="mt-2 text-[9px] text-slate-500 font-mono whitespace-pre-wrap break-all leading-relaxed max-h-[140px] overflow-y-auto">
+              <pre className="mt-2 text-[9px] text-stone-500 font-mono whitespace-pre-wrap break-all leading-relaxed max-h-[140px] overflow-y-auto">
                 {task.description}
               </pre>
             </details>
@@ -407,7 +423,42 @@ function ExecutionTraceDrawer({
   );
 }
 
-// ── TaskCard ───────────────────────────────────────────────────────────────
+// ── SortableTaskCard ────────────────────────────────────────────────────────
+
+function SortableTaskCard({
+  task,
+  onMove,
+  onDelete,
+  onTrace,
+}: {
+  task:    Task;
+  onMove:  (id: string, s: TaskStatus) => void;
+  onDelete:(id: string) => void;
+  onTrace: (task: Task) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: String(task._id) });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : "auto",
+    position: "relative" as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <TaskCard task={task} onMove={onMove} onDelete={onDelete} onTrace={onTrace} />
+    </div>
+  );
+}
 
 function TaskCard({
   task,
@@ -448,17 +499,17 @@ function TaskCard({
       {previewVisible && (
         <div
           aria-hidden="true"
-          className={`absolute top-0 z-50 w-52 p-3 panel-glass border border-white/15 rounded-lg shadow-2xl ${
+          className={`absolute top-0 z-50 w-52 p-3 panel-glass border border-stone-300/50 rounded-lg shadow-2xl ${
             side === "right" ? "left-full ml-2" : "right-full mr-2"
           }`}
           onMouseEnter={pEnter}
           onMouseLeave={pLeave}
         >
-          <p className="text-xs font-semibold text-slate-100 line-clamp-2 mb-1.5">{task.title}</p>
-          <p className="text-[10px] text-slate-400 line-clamp-3 mb-2">
+          <p className="text-xs font-semibold text-stone-800 line-clamp-2 mb-1.5">{task.title}</p>
+          <p className="text-[10px] text-stone-500 line-clamp-3 mb-2">
             {task.description?.replace(/[#*_\-`]/g, "").slice(0, 140) || "No description"}
           </p>
-          <div className="flex items-center gap-1.5 pt-1.5 border-t border-white/8 flex-wrap">
+          <div className="flex items-center gap-1.5 pt-1.5 border-t border-stone-200/50 flex-wrap">
             <StatusBadge status={task.status} size="xs" />
             <AgentBadge agent={task.assigned_to} size="xs" />
             {isTrueBlk && (
@@ -470,7 +521,7 @@ function TaskCard({
               ⚑ {task.blocked_reason.replace(/_/g, " ")}
             </p>
           )}
-          <p className="text-[9px] text-slate-600 mt-1">Created {createdDate}</p>
+          <p className="text-[9px] text-stone-500 mt-1">Created {createdDate}</p>
         </div>
       )}
 
@@ -486,7 +537,7 @@ function TaskCard({
       >
         <div className="flex items-start justify-between gap-1 mb-1.5">
           <span
-            className={`flex-1 line-clamp-2 leading-snug ${isTrueBlk ? "text-rose-100" : "text-slate-200"}`}
+            className={`flex-1 line-clamp-2 leading-snug ${isTrueBlk ? "text-rose-100" : "text-stone-700"}`}
             title={task.title}
           >
             {task.title}
@@ -495,7 +546,7 @@ function TaskCard({
             {/* Trace button */}
             <button
               onClick={(e) => { e.stopPropagation(); onTrace(task); }}
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-slate-600 hover:text-indigo-400 text-[10px] leading-none px-0.5"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-stone-500 hover:text-indigo-400 text-[10px] leading-none px-0.5"
               aria-label="View execution trace"
               title="Execution trace"
             >
@@ -504,7 +555,7 @@ function TaskCard({
             {/* Delete button */}
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(String(task._id)); }}
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-slate-600 hover:text-rose-400 text-sm leading-none"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-stone-500 hover:text-rose-400 text-sm leading-none"
               aria-label="Delete task"
             >
               ×
@@ -519,7 +570,7 @@ function TaskCard({
             onChange={(e) => onMove(String(task._id), e.target.value as TaskStatus)}
             onClick={(e) => e.stopPropagation()}
             aria-label="Change task status"
-            className="flex-1 bg-slate-900/60 border border-white/8 rounded px-1 py-0.5 text-[9px] text-slate-400 focus:outline-none focus:border-indigo-400/50 focus:ring-1 focus:ring-indigo-400/40 cursor-pointer"
+            className="flex-1 bg-stone-50/60 border border-stone-200/50 rounded px-1 py-0.5 text-[9px] text-stone-500 focus:outline-none focus:border-indigo-400/50 focus:ring-1 focus:ring-indigo-400/40 cursor-pointer"
           >
             {STATUS_ORDER.map((s) => (
               <option key={s} value={s}>{s.replace("_", " ")}</option>
@@ -539,7 +590,7 @@ function TaskCard({
           </p>
         )}
         {!isTrueBlk && !isHighStreak && task.blocked_reason && NOISE_REASONS.has(task.blocked_reason) && (
-          <p className="mt-1.5 text-[8px] text-slate-600 truncate leading-tight" title={task.blocked_reason}>
+          <p className="mt-1.5 text-[8px] text-stone-500 truncate leading-tight" title={task.blocked_reason}>
             {task.blocked_reason.replace(/_/g, " ")}
           </p>
         )}
@@ -587,7 +638,7 @@ function InlineCreateForm({
       <div className="flex items-center gap-1.5">
         <select
           value={assignee} onChange={(e) => setAssignee(e.target.value as Assignee)}
-          className="flex-1 bg-slate-900/60 border border-white/8 rounded px-1.5 py-1 text-[9px] text-slate-400 focus:outline-none focus:border-indigo-400/50"
+          className="flex-1 bg-stone-50/60 border border-stone-200/50 rounded px-1.5 py-1 text-[9px] text-stone-500 focus:outline-none focus:border-indigo-400/50"
           aria-label="Assign to"
         >
           {ASSIGNEE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -622,6 +673,23 @@ export default function TasksPage() {
   const [createForm,     setCreateForm]     = useState<CreateFormState | null>(null);
   const [pendingDelete,  setPendingDelete]  = useState<string | null>(null);
   const [traceTask,      setTraceTask]      = useState<Task | null>(null);
+
+  // DnD sensors for sortable
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const [activeDragItem, setActiveDragItem] = useState<Task | null>(null);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || !active) {
+      setActiveDragItem(null);
+      return;
+    }
+    // Within-column reordering - for now just clear the drag state
+    setActiveDragItem(null);
+  };
 
   const updateURL = (updates: Record<string, string | null>) => {
     const p = new URLSearchParams(searchParams.toString());
@@ -703,7 +771,7 @@ export default function TasksPage() {
         right={
           <>
             <FreshnessIndicator lastUpdate={lastUpdate} />
-            <span className="text-[10px] text-slate-500 tabular-nums">
+            <span className="text-[10px] text-stone-500 tabular-nums">
               {totalCount} tasks · {doneCount} done
             </span>
           </>
@@ -755,7 +823,7 @@ export default function TasksPage() {
         {showDates && (
           <div className="flex items-center gap-1.5">
             <input type="date" value={dateFrom} onChange={(e) => handleFrom(e.target.value)} className="input-glass text-xs py-1.5 w-auto" aria-label="From date" />
-            <span className="text-slate-600 text-xs">→</span>
+            <span className="text-stone-500 text-xs">→</span>
             <input type="date" value={dateTo}   onChange={(e) => handleTo(e.target.value)}   className="input-glass text-xs py-1.5 w-auto" aria-label="To date" />
           </div>
         )}
@@ -769,8 +837,8 @@ export default function TasksPage() {
       {pendingDelete && (
         <div role="alertdialog" aria-modal="true" aria-label="Confirm delete" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="panel-glass p-5 rounded-xl max-w-xs w-full mx-4 space-y-4">
-            <p className="text-sm text-slate-200 font-medium">Delete this task?</p>
-            <p className="text-xs text-slate-400">This action cannot be undone.</p>
+            <p className="text-sm text-stone-700 font-medium">Delete this task?</p>
+            <p className="text-xs text-stone-500">This action cannot be undone.</p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setPendingDelete(null)} className="btn-secondary text-xs" autoFocus>Cancel</button>
               <button onClick={handleDeleteConfirm} className="btn-danger">Delete</button>
@@ -785,58 +853,74 @@ export default function TasksPage() {
       )}
 
       {/* Kanban Grid */}
-      <div className="kanban-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-        {COLUMNS.map((col) => {
-          const colTasks = tasksByStatus[col.key] ?? [];
-          const colTrueBlockers = colTasks.filter((t) => isTrueBlocker(t as Task)).length;
-          return (
-            <div key={col.key} className="flex flex-col">
-              {/* Column header */}
-              <div className="flex items-center justify-between px-2.5 py-2 rounded-t-lg bg-slate-900/60 border border-b-0 border-white/8">
-                <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${col.dotColor}`} aria-hidden="true" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">{col.label}</span>
-                  {col.key === "blocked" && colTrueBlockers > 0 && (
-                    <span className="text-[8px] font-bold text-rose-400 bg-rose-500/15 border border-rose-500/25 px-1 py-0.5 rounded" title="True blockers">
-                      {colTrueBlockers}
-                    </span>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(event) => {
+          const task = tasks?.find((t) => String(t._id) === event.active.id);
+          if (task) setActiveDragItem(task as Task);
+        }}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveDragItem(null)}
+      >
+        <div className="kanban-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+          {COLUMNS.map((col) => {
+            const colTasks = tasksByStatus[col.key] ?? [];
+            const colTrueBlockers = colTasks.filter((t) => isTrueBlocker(t as Task)).length;
+            return (
+              <div key={col.key} className="flex flex-col">
+                {/* Column header */}
+                <div className="flex items-center justify-between px-2.5 py-2 rounded-t-lg bg-stone-50/60 border border-b-0 border-stone-200/50">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${col.dotColor}`} aria-hidden="true" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-stone-600">{col.label}</span>
+                    {col.key === "blocked" && colTrueBlockers > 0 && (
+                      <span className="text-[8px] font-bold text-rose-400 bg-rose-500/15 border border-rose-500/25 px-1 py-0.5 rounded" title="True blockers">
+                        {colTrueBlockers}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${col.badgeColor}`}>
+                    {colTasks.length}
+                  </span>
+                </div>
+
+                {/* Task cards — scroll-isolated column body */}
+                <div
+                  className="flex-1 min-h-0 space-y-1.5 p-2 panel-soft rounded-t-none min-h-[180px] overflow-y-auto border-t-0"
+                  style={{ maxHeight: "max(200px, calc(100vh - 300px))" }}
+                >
+                  <SortableContext
+                    items={colTasks.map((t) => String(t._id))}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {colTasks.map((task) => (
+                      <SortableTaskCard
+                        key={String(task._id)}
+                        task={task as Task}
+                        onMove={handleMove}
+                        onDelete={handleDeleteRequest}
+                        onTrace={(t) => setTraceTask(t)}
+                      />
+                    ))}
+                  </SortableContext>
+                  {createForm?.status === col.key ? (
+                    <InlineCreateForm initialStatus={col.key} onSubmit={handleCreate} onCancel={() => setCreateForm(null)} />
+                  ) : (
+                    <button
+                      onClick={() => setCreateForm({ status: col.key, title: "", assignee: "sam" })}
+                      className="w-full py-1.5 text-[10px] text-stone-500 hover:text-stone-600 border border-dashed border-stone-200/50 hover:border-stone-300/70 rounded-lg transition-colors"
+                      aria-label={`Add task to ${col.label}`}
+                    >
+                      + Add task
+                    </button>
                   )}
                 </div>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${col.badgeColor}`}>
-                  {colTasks.length}
-                </span>
               </div>
-
-              {/* Task cards — scroll-isolated column body */}
-              <div
-                className="flex-1 min-h-0 space-y-1.5 p-2 panel-soft rounded-t-none min-h-[180px] overflow-y-auto border-t-0"
-                style={{ maxHeight: "max(200px, calc(100vh - 300px))" }}
-              >
-                {colTasks.map((task) => (
-                  <TaskCard
-                    key={String(task._id)}
-                    task={task as Task}
-                    onMove={handleMove}
-                    onDelete={handleDeleteRequest}
-                    onTrace={(t) => setTraceTask(t)}
-                  />
-                ))}
-                {createForm?.status === col.key ? (
-                  <InlineCreateForm initialStatus={col.key} onSubmit={handleCreate} onCancel={() => setCreateForm(null)} />
-                ) : (
-                  <button
-                    onClick={() => setCreateForm({ status: col.key, title: "", assignee: "sam" })}
-                    className="w-full py-1.5 text-[10px] text-slate-600 hover:text-slate-300 border border-dashed border-white/8 hover:border-white/20 rounded-lg transition-colors"
-                    aria-label={`Add task to ${col.label}`}
-                  >
-                    + Add task
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </DndContext>
     </div>
   );
 }

@@ -1,0 +1,22 @@
+
+> mission-control@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.5
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./src/app/api/autonomy/route.ts:2303:14
+Type error: Type 'MapIterator<string>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+
+[0m [90m 2301 |[39m [36mfunction[39m getParsedRunUpdateLabels(output[33m:[39m string)[33m:[39m string[] {[0m
+[0m [90m 2302 |[39m   [36mconst[39m sections [33m=[39m parseLabeledSections(output)[33m;[39m[0m
+[0m[31m[1m>[22m[39m[90m 2303 |[39m   [36mreturn[39m [[33m...[39msections[33m.[39mkeys()][0m
+[0m [90m      |[39m              [31m[1m^[22m[39m[0m
+[0m [90m 2304 |[39m     [33m.[39mfilter((key) [33m=>[39m [33mRUN_UPDATE_FIELDS[39m[33m.[39msome((field) [33m=>[39m field[33m.[39maliases[33m.[39msome((alias) [33m=>[39m normalizeOutputFieldKey(alias) [33m===[39m key)))[0m
+[0m [90m 2305 |[39m     [33m.[39msort()[33m;[39m[0m
+[0m [90m 2306 |[39m }[0m

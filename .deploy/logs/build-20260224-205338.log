@@ -1,0 +1,23 @@
+
+> mission-control@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.5
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./src/app/api/autonomy/route.ts:274:25
+Type error: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+
+[0m [90m 272 |[39m[0m
+[0m [90m 273 |[39m [36mfunction[39m parseUpdatedAtMs(task[33m:[39m [33mPick[39m[33m<[39m[33mTaskDoc[39m[33m,[39m [32m"updated_at"[39m[33m>[39m)[33m:[39m number [33m|[39m [36mnull[39m {[0m
+[0m[31m[1m>[22m[39m[90m 274 |[39m   [36mconst[39m ms [33m=[39m [33mDate[39m[33m.[39mparse(task[33m.[39mupdated_at)[33m;[39m[0m
+[0m [90m     |[39m                         [31m[1m^[22m[39m[0m
+[0m [90m 275 |[39m   [36mreturn[39m [33mNumber[39m[33m.[39misFinite(ms) [33m?[39m ms [33m:[39m [36mnull[39m[33m;[39m[0m
+[0m [90m 276 |[39m }[0m
+[0m [90m 277 |[39m[0m

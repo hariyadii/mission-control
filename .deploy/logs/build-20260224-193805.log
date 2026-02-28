@@ -1,0 +1,23 @@
+
+> mission-control@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.5
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./src/app/api/autonomy/route.ts:2735:30
+Type error: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+
+[0m [90m 2733 |[39m       [33m:[39m undefined[33m;[39m[0m
+[0m [90m 2734 |[39m   [36mconst[39m previousSameReasonFailStreak [33m=[39m [33mNumber[39m[33m.[39misFinite(task[33m.[39msame_reason_fail_streak)[0m
+[0m[31m[1m>[22m[39m[90m 2735 |[39m     [33m?[39m [33mMath[39m[33m.[39mmax([35m0[39m[33m,[39m [33mMath[39m[33m.[39mfloor(task[33m.[39msame_reason_fail_streak))[0m
+[0m [90m      |[39m                              [31m[1m^[22m[39m[0m
+[0m [90m 2736 |[39m     [33m:[39m [35m0[39m[33m;[39m[0m
+[0m [90m 2737 |[39m   [36mconst[39m currentValidationReason [33m=[39m validation[33m.[39mstatus [33m===[39m [32m"fail"[39m [33m?[39m validation[33m.[39mreason [33m?[39m[33m?[39m [32m"validation_failed"[39m [33m:[39m undefined[33m;[39m[0m
+[0m [90m 2738 |[39m   [36mlet[39m sameReasonFailStreak [33m=[39m[0m

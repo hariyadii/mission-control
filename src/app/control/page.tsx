@@ -177,8 +177,8 @@ function IncidentTimeline({ health }: { health: WorkflowHealth | undefined }) {
                     ? "bg-rose-500/25 text-rose-300 border border-rose-500/30"
                     : s === "warning"
                     ? "bg-amber-500/25 text-amber-300 border border-amber-500/30"
-                    : "bg-slate-700/60 text-slate-200 border border-white/15"
-                  : "text-slate-600 hover:text-slate-400"
+                    : "bg-stone-200/60 text-stone-700 border border-stone-300/50"
+                  : "text-stone-500 hover:text-stone-500"
               }`}
             >
               {s === "all" ? "All" : s.slice(0, 4).toUpperCase()}
@@ -239,7 +239,7 @@ function RunLockPanel({ health }: { health: WorkflowHealth | undefined }) {
                   className={`w-1.5 h-1.5 rounded-full shrink-0 ${lock.overBudget ? "bg-amber-400" : "bg-cyan-400 animate-pulse"}`}
                   aria-hidden="true"
                 />
-                <span className="flex-1 font-mono text-[10px] text-slate-300 truncate" title={lock.name}>
+                <span className="flex-1 font-mono text-[10px] text-stone-600 truncate" title={lock.name}>
                   {lock.name}
                 </span>
                 <span className={`text-[9px] tabular-nums shrink-0 ${lock.overBudget ? "text-amber-400 font-bold" : "text-cyan-300"}`}>
@@ -252,7 +252,7 @@ function RunLockPanel({ health }: { health: WorkflowHealth | undefined }) {
                 )}
               </div>
               {/* Progress bar */}
-              <div className="h-1 rounded-full overflow-hidden bg-slate-800/70">
+              <div className="h-1 rounded-full overflow-hidden bg-stone-100/70">
                 <div
                   className={`h-full rounded-full transition-all ${lock.overBudget ? "bg-amber-500/70" : "bg-cyan-500/60"}`}
                   style={{ width: `${pct}%` }}
@@ -285,7 +285,7 @@ function CronJobRow({ job }: { job: CronJob }) {
       {/* Status dot */}
       <span
         className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-          !job.enabled ? "bg-slate-700" :
+          !job.enabled ? "bg-stone-200" :
           hasError && errors >= 3 ? "bg-rose-400 animate-pulse" :
           hasError ? "bg-amber-400" :
           isRunning ? "bg-cyan-400 animate-pulse" :
@@ -297,7 +297,7 @@ function CronJobRow({ job }: { job: CronJob }) {
       {/* Name */}
       <span
         className={`flex-1 truncate text-[10px] min-w-0 ${
-          hasError && errors >= 3 ? "text-rose-300 font-semibold" : "text-slate-300"
+          hasError && errors >= 3 ? "text-rose-300 font-semibold" : "text-stone-600"
         }`}
         title={job.name ?? job.id}
       >
@@ -327,7 +327,7 @@ function CronJobRow({ job }: { job: CronJob }) {
       )}
 
       {/* Next run */}
-      <span className="text-[9px] text-slate-600 tabular-nums shrink-0 min-w-[40px] text-right">
+      <span className="text-[9px] text-stone-500 tabular-nums shrink-0 min-w-[40px] text-right">
         {fmtNextRun(job.state?.nextRunAtMs)}
       </span>
 
@@ -423,16 +423,16 @@ export default function ControlPage() {
         </div>
         <div className="panel-glass p-3 min-w-0">
           <p className="section-label mb-1">X Actions Today</p>
-          <p className="text-xl font-bold text-slate-100 mt-1 tabular-nums truncate">
+          <p className="text-xl font-bold text-stone-800 mt-1 tabular-nums truncate">
             {data?.externalActionsToday ?? "—"}
-            <span className="text-sm font-normal text-slate-500">
+            <span className="text-sm font-normal text-stone-500">
               {" "}/ {data?.policy?.external?.maxActionsPerDay ?? "—"}
             </span>
           </p>
         </div>
         <div className="panel-glass p-3">
           <p className="section-label mb-1">Capital Mode</p>
-          <p className="text-xl font-bold text-slate-100 mt-1 uppercase">
+          <p className="text-xl font-bold text-stone-800 mt-1 uppercase">
             {data?.policy?.capitalLane?.mode ?? "—"}
           </p>
         </div>
@@ -466,11 +466,11 @@ export default function ControlPage() {
 
           {/* Blocked by assignee */}
           {health.blockedByAssignee && Object.keys(health.blockedByAssignee).length > 0 && (
-            <div className="pt-2 border-t border-white/8 mb-3">
+            <div className="pt-2 border-t border-stone-200/50 mb-3">
               <p className="section-label mb-1.5">Blocked by Assignee</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(health.blockedByAssignee).map(([a, n]) => (
-                  <div key={a} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/60 border border-white/8">
+                  <div key={a} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-stone-100/60 border border-stone-200/50">
                     <AgentBadge agent={a} size="xs" />
                     <span className="text-[10px] font-bold text-amber-300 tabular-nums">{n}</span>
                   </div>
@@ -481,16 +481,16 @@ export default function ControlPage() {
 
           {/* Stalled / validation loops (de-emphasized when not critical) */}
           {((health.stalledBacklogTasks ?? 0) > 0 || (health.validationLoopTasks ?? 0) > 0) && (
-            <div className="pt-2 border-t border-white/8 grid grid-cols-2 gap-2">
+            <div className="pt-2 border-t border-stone-200/50 grid grid-cols-2 gap-2">
               {(health.stalledBacklogTasks ?? 0) > 0 && (
                 <div className="text-xs">
-                  <span className="text-slate-500">Stalled backlog: </span>
+                  <span className="text-stone-500">Stalled backlog: </span>
                   <span className="text-amber-300 font-semibold">{health.stalledBacklogTasks}</span>
                 </div>
               )}
               {(health.validationLoopTasks ?? 0) > 0 && (
                 <div className="text-xs">
-                  <span className="text-slate-500">Validation loops: </span>
+                  <span className="text-stone-500">Validation loops: </span>
                   <span className="text-rose-300 font-semibold">{health.validationLoopTasks}</span>
                 </div>
               )}
@@ -499,12 +499,12 @@ export default function ControlPage() {
 
           {/* Consecutive cron errors (only show when actionable: >=2) */}
           {health.consecutiveCronErrorsByJob && Object.keys(health.consecutiveCronErrorsByJob).length > 0 && (
-            <div className="pt-2 border-t border-white/8">
+            <div className="pt-2 border-t border-stone-200/50">
               <p className="section-label mb-1.5">Cron Errors (Consecutive)</p>
               <div className="space-y-1">
                 {Object.entries(health.consecutiveCronErrorsByJob).map(([job, n]) => (
                   <div key={job} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400 truncate font-mono text-[10px]">{job}</span>
+                    <span className="text-stone-500 truncate font-mono text-[10px]">{job}</span>
                     <span className={`font-bold tabular-nums ${n >= 3 ? "text-rose-400" : "text-amber-400"}`}>×{n}</span>
                   </div>
                 ))}
@@ -528,7 +528,7 @@ export default function ControlPage() {
               })
               .map((job) => <CronJobRow key={job.id} job={job} />)
           ) : (
-            <p className="text-xs text-slate-600 text-center py-3">Loading…</p>
+            <p className="text-xs text-stone-500 text-center py-3">Loading…</p>
           )}
         </div>
       </SectionCard>
@@ -536,19 +536,19 @@ export default function ControlPage() {
       {/* Policy */}
       <SectionCard title="Policy">
         <div className="space-y-2 text-xs">
-          <div className="flex items-center justify-between py-1 border-b border-white/5">
-            <span className="text-slate-400">High risk external actions</span>
+          <div className="flex items-center justify-between py-1 border-b border-stone-200/50">
+            <span className="text-stone-500">High risk external actions</span>
             <span className={data?.policy?.allowHighRiskExternalActions ? "text-rose-400 font-semibold" : "text-emerald-400 font-semibold"}>
               {data?.policy?.allowHighRiskExternalActions ? "Allowed" : "Blocked"}
             </span>
           </div>
-          <div className="flex items-center justify-between py-1 border-b border-white/5">
-            <span className="text-slate-400">X Mode</span>
-            <span className="text-slate-300 uppercase font-mono">{data?.policy?.external?.xMode ?? "—"}</span>
+          <div className="flex items-center justify-between py-1 border-b border-stone-200/50">
+            <span className="text-stone-500">X Mode</span>
+            <span className="text-stone-600 uppercase font-mono">{data?.policy?.external?.xMode ?? "—"}</span>
           </div>
           <div className="flex items-center justify-between py-1">
-            <span className="text-slate-400">Capital mode</span>
-            <span className={`font-semibold uppercase ${data?.policy?.capitalLane?.mode === "live" ? "text-rose-400" : "text-slate-300"}`}>
+            <span className="text-stone-500">Capital mode</span>
+            <span className={`font-semibold uppercase ${data?.policy?.capitalLane?.mode === "live" ? "text-rose-400" : "text-stone-600"}`}>
               {data?.policy?.capitalLane?.mode ?? "—"}
             </span>
           </div>

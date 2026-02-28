@@ -35,7 +35,7 @@ const TAG_STYLE: Record<string, { bg: string; text: string }> = {
   todo:     { bg: "bg-amber-500/15 border border-amber-500/28",   text: "text-amber-300"   },
   personal: { bg: "bg-rose-500/15 border border-rose-500/28",     text: "text-rose-300"    },
   incident: { bg: "bg-rose-500/20 border border-rose-500/35",     text: "text-rose-400"    },
-  note:     { bg: "bg-slate-700/45 border border-slate-600/35",   text: "text-slate-400"   },
+  note:     { bg: "bg-stone-200/45 border border-stone-300/35",   text: "text-stone-500"   },
 };
 
 // Highlight query matches in text
@@ -85,7 +85,7 @@ function MemoryCard({
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-xs font-semibold text-slate-200 truncate">{title}</p>
+            <p className="text-xs font-semibold text-stone-700 truncate">{title}</p>
             {/* Tags */}
             {tags.slice(0, 3).map((tag) => {
               const s = TAG_STYLE[tag] ?? TAG_STYLE.note;
@@ -101,7 +101,7 @@ function MemoryCard({
               </span>
             )}
           </div>
-          {date && <p className="text-[9px] text-slate-500 mt-0.5">{date}</p>}
+          {date && <p className="text-[9px] text-stone-500 mt-0.5">{date}</p>}
         </div>
         {hasMore && (
           <button
@@ -116,7 +116,7 @@ function MemoryCard({
 
       {/* Content with match highlights */}
       <pre
-        className="whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-slate-400 overflow-x-hidden max-w-full"
+        className="whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-stone-500 overflow-x-hidden max-w-full"
         dangerouslySetInnerHTML={{
           __html: displayWithHighlights
             .replace(/&/g, "&amp;")
@@ -138,10 +138,10 @@ function MemorySkeleton() {
     <div className="space-y-2">
       {[1, 2, 3].map((i) => (
         <div key={i} className="panel-soft p-3 space-y-1.5 animate-pulse">
-          <div className="h-3 bg-slate-700/60 rounded w-32" />
-          <div className="h-2 bg-slate-800/70 rounded w-full" />
-          <div className="h-2 bg-slate-800/70 rounded w-4/5" />
-          <div className="h-2 bg-slate-800/70 rounded w-2/3" />
+          <div className="h-3 bg-stone-200/60 rounded w-32" />
+          <div className="h-2 bg-stone-100/70 rounded w-full" />
+          <div className="h-2 bg-stone-100/70 rounded w-4/5" />
+          <div className="h-2 bg-stone-100/70 rounded w-2/3" />
         </div>
       ))}
     </div>
@@ -228,7 +228,7 @@ export default function MemoryPage() {
           </span>
         )}
         {query && totalMatches === 0 && !loading && (
-          <span className="text-[10px] text-slate-500 shrink-0">No matches</span>
+          <span className="text-[10px] text-stone-500 shrink-0">No matches</span>
         )}
       </div>
 
@@ -240,8 +240,8 @@ export default function MemoryPage() {
             aria-pressed={tagFilter === "all"}
             className={`text-[9px] font-semibold px-2 py-1 rounded-md transition-colors ${
               tagFilter === "all"
-                ? "bg-slate-700/70 text-slate-200 border border-white/15"
-                : "text-slate-600 hover:text-slate-400"
+                ? "bg-stone-200/70 text-stone-700 border border-stone-300/50"
+                : "text-stone-500 hover:text-stone-500"
             }`}
           >
             All ({tagCounts.all ?? 0})
@@ -256,7 +256,7 @@ export default function MemoryPage() {
                 className={`text-[9px] font-semibold px-2 py-1 rounded-md transition-colors capitalize ${
                   tagFilter === tag
                     ? `${s.bg} ${s.text}`
-                    : "text-slate-600 hover:text-slate-400"
+                    : "text-stone-500 hover:text-stone-500"
                 }`}
               >
                 {tag} ({tagCounts[tag] ?? 0})
@@ -292,12 +292,12 @@ export default function MemoryPage() {
           <section className="panel-glass p-3">
             <div className="flex items-center justify-between mb-2">
               <p className="section-label text-cyan-400">Daily Notes</p>
-              <span className="text-[9px] text-slate-500 tabular-nums">
+              <span className="text-[9px] text-stone-500 tabular-nums">
                 {filteredDaily.length} / {data.daily.length} files
               </span>
             </div>
             {filteredDaily.length === 0 ? (
-              <p className="text-[10px] text-slate-600 text-center py-3">
+              <p className="text-[10px] text-stone-500 text-center py-3">
                 {query || tagFilter !== "all" ? "No matches" : "No daily files"}
               </p>
             ) : (
@@ -306,7 +306,7 @@ export default function MemoryPage() {
                   <MemoryCard key={f.name} title={f.name} content={f.content} date={f.date} query={query} />
                 ))}
                 {filteredDaily.length > 15 && (
-                  <p className="text-[9px] text-slate-600 text-center py-2">
+                  <p className="text-[9px] text-stone-500 text-center py-2">
                     {filteredDaily.length - 15} more files not shown
                   </p>
                 )}

@@ -1,0 +1,7 @@
+{
+  "status": "ok",
+  "deployedAt": "2026-02-28T15:44:01+07:00",
+  "buildLog": "/home/ubuntu/mission-control/.deploy/logs/build-20260228-154401.log",
+  "smokeLog": "/home/ubuntu/mission-control/.deploy/logs/smoke-20260228-154401.log",
+  "service": "openclaw-mission-control.service"
+}

@@ -124,15 +124,15 @@ export default function CapitalPage() {
       <SectionCard title="Strategy Stats">
         <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-xs">
           {[
-            { label: "Wins",       value: metrics?.stats.wins      ?? "—",  color: "text-slate-200" },
-            { label: "Losses",     value: metrics?.stats.losses    ?? "—",  color: "text-slate-200" },
+            { label: "Wins",       value: metrics?.stats.wins      ?? "—",  color: "text-stone-700" },
+            { label: "Losses",     value: metrics?.stats.losses    ?? "—",  color: "text-stone-700" },
             { label: "Win Rate",   value: metrics?.stats.winRate != null ? `${(metrics.stats.winRate * 100).toFixed(0)}%` : "—", color: "text-emerald-400" },
-            { label: "Avg Win",    value: metrics?.stats.avgWin    != null ? `$${metrics.stats.avgWin.toFixed(0)}` : "—", color: "text-slate-200" },
-            { label: "Avg Loss",   value: metrics?.stats.avgLoss   != null ? `$${metrics.stats.avgLoss.toFixed(0)}` : "—", color: "text-slate-200" },
+            { label: "Avg Win",    value: metrics?.stats.avgWin    != null ? `$${metrics.stats.avgWin.toFixed(0)}` : "—", color: "text-stone-700" },
+            { label: "Avg Loss",   value: metrics?.stats.avgLoss   != null ? `$${metrics.stats.avgLoss.toFixed(0)}` : "—", color: "text-stone-700" },
             { label: "Expectancy", value: metrics?.stats.expectancy != null ? `$${metrics.stats.expectancy.toFixed(0)}` : "—", color: "text-cyan-400" },
           ].map((s) => (
             <div key={s.label}>
-              <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">{s.label}</p>
+              <p className="text-[9px] text-stone-500 uppercase tracking-wider mb-0.5">{s.label}</p>
               <p className={`font-semibold ${s.color}`}>{String(s.value)}</p>
             </div>
           ))}
@@ -142,29 +142,29 @@ export default function CapitalPage() {
       {/* Positions */}
       <SectionCard
         title="Open Positions"
-        badge={<span className="text-[9px] text-slate-500">{status?.portfolio?.positions?.length ?? 0} open</span>}
+        badge={<span className="text-[9px] text-stone-500">{status?.portfolio?.positions?.length ?? 0} open</span>}
       >
         <div className="space-y-1.5 max-h-[220px] overflow-y-auto">
           {status?.portfolio?.positions?.length ? (
             status.portfolio.positions.map((pos) => (
               <div key={pos.id} className="panel-soft px-3 py-2 text-xs">
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-slate-200 font-semibold">
+                  <span className="text-stone-700 font-semibold">
                     {pos.symbol}{" "}
-                    <span className="font-normal text-slate-500">{pos.side}</span>
+                    <span className="font-normal text-stone-500">{pos.side}</span>
                   </span>
                   <span className={pos.unrealizedPnl >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
                     {pos.unrealizedPnl >= 0 ? "+" : ""}{pos.unrealizedPnlPct.toFixed(1)}%
                   </span>
                 </div>
-                <div className="flex justify-between gap-2 text-[10px] text-slate-500 min-w-0">
+                <div className="flex justify-between gap-2 text-[10px] text-stone-500 min-w-0">
                   <span className="truncate">${pos.entryPrice.toFixed(2)} → ${pos.currentPrice.toFixed(2)}</span>
                   <span className="shrink-0">SL {pos.stopLoss} · TP {pos.takeProfit}</span>
                 </div>
               </div>
             ))
           ) : (
-            <p className="text-xs text-slate-600 text-center py-4">No open positions</p>
+            <p className="text-xs text-stone-500 text-center py-4">No open positions</p>
           )}
         </div>
       </SectionCard>
@@ -174,15 +174,15 @@ export default function CapitalPage() {
         <div className="space-y-0 max-h-[160px] overflow-y-auto">
           {metrics?.recentTrades?.length ? (
             metrics.recentTrades.slice(0, 10).map((t) => (
-              <div key={t.id} className="flex items-center justify-between py-1.5 text-xs border-b border-white/5 last:border-0">
-                <span className="text-slate-300">{t.symbol} <span className="text-slate-500">{t.side}</span></span>
+              <div key={t.id} className="flex items-center justify-between py-1.5 text-xs border-b border-stone-200/50 last:border-0">
+                <span className="text-stone-600">{t.symbol} <span className="text-stone-500">{t.side}</span></span>
                 <span className={t.realizedPnl >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
                   {t.realizedPnl >= 0 ? "+" : ""}${t.realizedPnl.toFixed(0)}
                 </span>
               </div>
             ))
           ) : (
-            <p className="text-xs text-slate-600 text-center py-4">No closed trades</p>
+            <p className="text-xs text-stone-500 text-center py-4">No closed trades</p>
           )}
         </div>
       </SectionCard>

@@ -3,6 +3,7 @@ import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import Sidebar from "@/components/Sidebar";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
+import CommandPalette from "@/components/CommandPalette";
 import { MissionControlProvider } from "@/contexts";
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <main className="content-wrap">{children}</main>
             </div>
             <KeyboardShortcuts />
+            <CommandPalette />
           </MissionControlProvider>
         </ConvexClientProvider>
       </body>
