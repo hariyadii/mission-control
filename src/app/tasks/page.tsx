@@ -960,6 +960,19 @@ export default function TasksPage() {
                       />
                     ))}
                   </SortableContext>
+                  {/* Empty state */}
+                  {colTasks.length === 0 && createForm?.status !== col.key && (
+                    <div className="flex flex-col items-center justify-center py-6 px-2 text-center">
+                      <p className="text-[10px] text-stone-400 mb-1">No tasks</p>
+                      <p className="text-[9px] text-stone-500 leading-tight max-w-[120px]">
+                        {col.key === "suggested" && "New tasks will appear here when suggested"}
+                        {col.key === "backlog" && "Approved tasks move here for processing"}
+                        {col.key === "in_progress" && "Tasks being worked on show here"}
+                        {col.key === "blocked" && "Blocked tasks appear here with reasons"}
+                        {col.key === "done" && "Completed tasks move here"}
+                      </p>
+                    </div>
+                  )}
                   {createForm?.status === col.key ? (
                     <InlineCreateForm initialStatus={col.key} onSubmit={handleCreate} onCancel={() => setCreateForm(null)} />
                   ) : (
