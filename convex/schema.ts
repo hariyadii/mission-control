@@ -68,6 +68,9 @@ export default defineSchema({
     lane_paused: v.optional(v.boolean()),
     lane_paused_reason: v.optional(v.string()),
     lane_paused_at: v.optional(v.string()),
+
+    // Task ordering for persistent Kanban drag-drop
+    order: v.optional(v.number()),
   })
     .index("by_idempotency", ["idempotency_key"])
     .index("by_status_assignee", ["status", "assigned_to"])
