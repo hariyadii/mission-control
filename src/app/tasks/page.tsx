@@ -59,6 +59,7 @@ type Task = {
   blocked_until?: string;
   unblock_signal?:string;
   same_reason_fail_streak?: number;
+  order?: number;
   retry_count_total?: number;
   last_validation_reason?: string;
   artifact_path?: string;
@@ -659,6 +660,7 @@ export default function TasksPage() {
   const createTask   = useMutation(api.tasks.create);
   const updateStatus = useMutation(api.tasks.updateStatus);
   const removeTask   = useMutation(api.tasks.remove);
+  const updateOrder   = useMutation(api.tasks.updateOrder);
   const searchParams = useSearchParams();
   const router       = useRouter();
   const pathname     = usePathname();
@@ -681,13 +683,65 @@ export default function TasksPage() {
   );
   const [activeDragItem, setActiveDragItem] = useState<Task | null>(null);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || !active) {
       setActiveDragItem(null);
       return;
     }
-    // Within-column reordering - for now just clear the drag state
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Find the tasks in the current columns
+    const activeTask = tasks?.find((t) => String(t._id) === activeId);
+    if (!activeTask) {
+      setActiveDragItem(null);
+      return;
+    }
+
+    // Determine the target column and tasks
+    let targetColumn = activeTask.status;
+    let targetTasks = filteredTasks.filter((t) => t.status === targetColumn);
+    
+    // If dragging over a different task, find which column that task is in
+    const overTask = tasks?.find((t) => String(t._id) === overId);
+    if (overTask && overTask.status !== activeTask.status) {
+      targetColumn = overTask.status;
+      targetTasks = filteredTasks.filter((t) => t.status === targetColumn);
+    }
+
+    // Calculate new order based on position
+    const activeIndex = targetTasks.findIndex((t) => String(t._id) === activeId);
+    const overIndex = targetTasks.findIndex((t) => String(t._id) === overId);
+
+    // Get current max order in target column
+    const orders = targetTasks.map((t) => t.order ?? 0).filter((o) => o !== 0);
+    const maxOrder = orders.length > 0 ? Math.max(...orders) : targetTasks.length * 1000;
+
+    let newOrder: number;
+    if (overIndex === -1 || activeIndex === overIndex) {
+      // Dropped at end or same position - use max + 1000
+      newOrder = maxOrder + 1000;
+    } else if (activeIndex < overIndex) {
+      // Moving down - place after over task
+      const overOrder = targetTasks[overIndex].order ?? ((overIndex + 1) * 1000);
+      const nextOrder = targetTasks[overIndex + 1]?.order ?? (overOrder + 1000);
+      newOrder = (overOrder + nextOrder) / 2;
+    } else {
+      // Moving up - place before over task
+      const overOrder = targetTasks[overIndex].order ?? ((overIndex + 1) * 1000);
+      const prevOrder = targetTasks[overIndex - 1]?.order ?? (overOrder - 1000);
+      newOrder = (prevOrder + overOrder) / 2;
+    }
+
+    // Persist the new order
+    try {
+      await updateOrder({ id: activeId as Id<"tasks">, order: newOrder });
+    } catch (e) {
+      console.error("Failed to update order:", e);
+    }
+
     setActiveDragItem(null);
   };
 
@@ -734,7 +788,9 @@ export default function TasksPage() {
 
   const tasksByStatus = useMemo(() =>
     COLUMNS.reduce((acc, col) => {
-      acc[col.key] = filteredTasks.filter((t) => t.status === col.key) as Task[];
+      acc[col.key] = filteredTasks
+        .filter((t) => t.status === col.key)
+        .sort((a, b) => (a.order ?? 999999) - (b.order ?? 999999)) as Task[];
       return acc;
     }, {} as Record<string, Task[]>),
   [filteredTasks]);
