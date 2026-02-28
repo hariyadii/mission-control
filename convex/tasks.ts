@@ -85,6 +85,7 @@ export const create = mutation({
       changelog_feature: undefined,
       changelog_status: "pending",
       changelog_last_checked_at: undefined,
+      order: undefined,
     });
   },
 });
@@ -163,6 +164,17 @@ export const updateTask = mutation({
     const { id, ...updates } = args;
     const filtered = Object.fromEntries(Object.entries(updates).filter(([, value]) => value !== undefined));
     await ctx.db.patch(id, { ...filtered, updated_at: nowIso() });
+  },
+});
+
+
+export const updateOrder = mutation({
+  args: {
+    id: v.id("tasks"),
+    order: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { order: args.order, updated_at: nowIso() });
   },
 });
 
@@ -467,6 +479,7 @@ export const pauseLane = mutation({
         changelog_feature: undefined,
         changelog_status: "pending",
         changelog_last_checked_at: undefined,
+      order: undefined,
         failure_fingerprint: undefined,
         lane_paused: undefined,
         lane_paused_reason: undefined,
