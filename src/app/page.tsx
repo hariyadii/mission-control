@@ -8,7 +8,7 @@
  *  4. Operator Signal — true blockers highlighted, noise de-emphasized
  */
 import Link from "next/link";
-import { Suspense, useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
@@ -150,11 +150,11 @@ type LaneConfig = {
 };
 
 const LANES: LaneConfig[] = [
-  { id: "alex",  label: "Alex",  aliases: ["alex"],              color: { text: "text-amber-300",  bar: "bg-amber-400",  dot: "bg-amber-400",  border: "border-amber-400/25"  } },
-  { id: "sam",   label: "Sam",   aliases: ["sam", "agent"],      color: { text: "text-cyan-300",   bar: "bg-cyan-400",   dot: "bg-cyan-400",   border: "border-cyan-400/25"   } },
-  { id: "lyra",  label: "Lyra",  aliases: ["lyra"],              color: { text: "text-violet-300", bar: "bg-violet-400", dot: "bg-violet-400", border: "border-violet-400/25" } },
-  { id: "nova",  label: "Nova",  aliases: ["nova"],              color: { text: "text-rose-300",   bar: "bg-rose-400",   dot: "bg-rose-400",   border: "border-rose-400/25"   } },
-  { id: "ops",   label: "Ops",   aliases: ["ops"],               color: { text: "text-stone-600",  bar: "bg-stone-400",  dot: "bg-stone-400",  border: "border-stone-400/25"  } },
+  { id: "alex",  label: "Alex",  aliases: ["alex"],              color: { text: "text-amber-700",  bar: "bg-amber-500",  dot: "bg-amber-500",  border: "border-amber-500/20"  } },
+  { id: "sam",   label: "Sam",   aliases: ["sam", "agent"],      color: { text: "text-teal-700",   bar: "bg-teal-500",   dot: "bg-teal-500",   border: "border-teal-500/20"   } },
+  { id: "lyra",  label: "Lyra",  aliases: ["lyra"],              color: { text: "text-purple-700", bar: "bg-purple-500", dot: "bg-purple-500", border: "border-purple-500/20" } },
+  { id: "nova",  label: "Nova",  aliases: ["nova"],              color: { text: "text-red-700",    bar: "bg-red-500",    dot: "bg-red-500",    border: "border-red-500/20"    } },
+  { id: "ops",   label: "Ops",   aliases: ["ops"],               color: { text: "text-stone-600",  bar: "bg-stone-500",  dot: "bg-stone-500",  border: "border-stone-500/20"  } },
 ];
 
 type LaneStats = {
@@ -233,15 +233,15 @@ function LaneHealthStrip({ lane, stats }: { lane: LaneConfig; stats: LaneStats }
         <span
           className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
             stats.inProgress > 0
-              ? "text-cyan-300 bg-cyan-500/15 border border-cyan-500/25"
-              : "text-stone-500 bg-stone-100/50 border border-stone-200/50"
+              ? "text-teal-700 bg-teal-500/15 border border-teal-500/25"
+              : "text-stone-600 bg-stone-200/50 border border-stone-300/30"
           }`}
           title="In progress"
         >
           {stats.inProgress} run
         </span>
         <span
-          className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums text-indigo-300 bg-indigo-500/15 border border-indigo-500/25"
+          className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums text-indigo-700 bg-indigo-500/15 border border-indigo-500/25"
           title="Backlog"
         >
           {stats.backlog} queue
@@ -250,8 +250,8 @@ function LaneHealthStrip({ lane, stats }: { lane: LaneConfig; stats: LaneStats }
           <span
             className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
               stats.trueBlockers > 0
-                ? "text-rose-300 bg-rose-500/20 border border-rose-500/30"
-                : "text-amber-300 bg-amber-500/15 border border-amber-500/25"
+                ? "text-rose-700 bg-rose-500/20 border border-rose-500/30"
+                : "text-amber-700 bg-amber-500/15 border border-amber-500/25"
             }`}
             title={`${stats.trueBlockers} true blocker(s)`}
           >
@@ -271,7 +271,7 @@ function LaneHealthStrip({ lane, stats }: { lane: LaneConfig; stats: LaneStats }
       {/* Progress bar */}
       {totalWork > 0 && (
         <div
-          className="h-1 rounded-full overflow-hidden bg-stone-100/80 flex"
+          className="h-1 rounded-full overflow-hidden bg-stone-200/80 flex"
           role="img"
           aria-label={`${lane.label}: ${stats.inProgress} running, ${stats.backlog} queued, ${stats.blocked} blocked`}
         >
@@ -344,11 +344,11 @@ function IncidentTimeline({ incidents }: { incidents: Incident[] }) {
               className={`text-[9px] font-semibold px-1.5 py-0.5 rounded transition-colors capitalize ${
                 filter === s
                   ? s === "critical"
-                    ? "bg-rose-500/25 text-rose-300 border border-rose-500/30"
+                    ? "bg-rose-500/25 text-rose-700 border border-rose-500/30"
                     : s === "warning"
-                    ? "bg-amber-500/25 text-amber-300 border border-amber-500/30"
-                    : "bg-stone-200/60 text-stone-700 border border-stone-300/50"
-                  : "text-stone-500 hover:text-stone-500"
+                    ? "bg-amber-500/25 text-amber-700 border border-amber-500/30"
+                    : "bg-stone-200/60 text-stone-700 border border-stone-300/40"
+                  : "text-stone-500 hover:text-stone-700"
               }`}
               aria-pressed={filter === s}
             >
@@ -374,7 +374,7 @@ function IncidentTimeline({ incidents }: { incidents: Incident[] }) {
             >
               <IncidentBadge severity={inc.severity} />
               <div className="flex-1 min-w-0">
-                <p className="text-stone-700 truncate leading-snug font-medium" title={inc.message}>
+                <p className="text-stone-800 truncate leading-snug font-medium" title={inc.message}>
                   {inc.message}
                 </p>
                 {inc.action && (
@@ -496,7 +496,7 @@ function BacklogAgingPanel({ tasks }: { tasks: Task[] }) {
               <span className={`text-[9px] font-bold w-8 shrink-0 ${lane.color.text}`}>{lane.label}</span>
               {/* Stacked bar */}
               <div
-                className="flex-1 h-4 rounded overflow-hidden flex bg-stone-50/60"
+                className="flex-1 h-4 rounded overflow-hidden flex bg-stone-200/60"
                 role="img"
                 aria-label={`${lane.label}: ${total} backlog tasks`}
               >
@@ -557,14 +557,14 @@ function TaskRow({
       {showAge && (
         <span
           className={`w-6 text-[10px] tabular-nums shrink-0 ${
-            isTrueBlk ? "text-rose-400" : isStale ? "text-amber-400" : "text-stone-500"
+            isTrueBlk ? "text-rose-600" : isStale ? "text-amber-600" : "text-stone-500"
           }`}
         >
           {age}
         </span>
       )}
       <span
-        className={`flex-1 truncate ${isTrueBlk ? "text-rose-200" : "text-stone-700"}`}
+        className={`flex-1 truncate ${isTrueBlk ? "text-rose-700" : "text-stone-700"}`}
         title={task.title}
       >
         {task.title}
@@ -587,14 +587,14 @@ function TaskRow({
 
 function QueueSection({
   label,
-  dotColor,
-  badgeColor,
+  dotColor = "bg-stone-400",
+  badgeColor = "text-stone-600 bg-stone-200",
   tasks,
   maxH = "120px",
 }: {
   label: string;
-  dotColor: string;
-  badgeColor: string;
+  dotColor?: string;
+  badgeColor?: string;
   tasks: Task[];
   maxH?: string;
 }) {
@@ -662,249 +662,15 @@ function TrueBlockerBanner({ tasks }: { tasks: Task[] }) {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
-// ── Overview Skeletons ────────────────────────────────────────────────────
-
-function OverviewSkeleton() {
-  return (
-    <div className="flex flex-col gap-4 page-enter animate-pulse">
-      <PageHeader
-        title="Mission Control"
-        subtitle="Autonomous AI operations dashboard"
-        right={<div className="bg-stone-100/50 rounded h-4 w-32" />}
-      />
-      <LaneHealthSkeleton />
-      <FilterPipelineSkeleton />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="space-y-3"><div className="h-32 bg-stone-100/30 rounded-lg" /><div className="h-48 bg-stone-100/30 rounded-lg" /></div>
-        <div className="space-y-3"><div className="h-32 bg-stone-100/30 rounded-lg" /><div className="h-24 bg-stone-100/30 rounded-lg" /></div>
-        <div className="space-y-3"><div className="h-40 bg-stone-100/30 rounded-lg" /><div className="h-40 bg-stone-100/30 rounded-lg" /></div>
-      </div>
-    </div>
-  );
-}
-
-function LaneHealthSkeleton() {
-  const LANE_COLORS = ["bg-amber-400", "bg-cyan-400", "bg-violet-400", "bg-rose-400", "bg-stone-400"];
-  return (
-    <section aria-label="Lane health overview">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">Lane Health</p>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        {LANE_COLORS.map((color, i) => (
-          <div key={i} className="panel-soft p-2.5 border border-stone-200/50">
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`w-1.5 h-1.5 rounded-full ${color} opacity-50`} />
-              <div className="h-3 w-8 bg-stone-200/50 rounded" />
-            </div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <div className="h-4 w-10 bg-stone-200/50 rounded" />
-              <div className="h-4 w-10 bg-stone-200/50 rounded" />
-            </div>
-            <div className="h-1 rounded-full bg-stone-100/80 overflow-hidden">
-              <div className="h-full bg-stone-200/50 rounded-full" style={{ width: "60%" }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function FilterPipelineSkeleton() {
-  return (
-    <>
-      {/* Filter Bar Skeleton */}
-      <div className="flex flex-wrap items-center gap-2 p-2.5 panel-glass">
-        <div className="h-7 w-32 bg-stone-100/50 rounded-lg" />
-        <div className="h-7 w-24 bg-stone-100/50 rounded-lg" />
-        <div className="h-7 w-24 bg-stone-100/50 rounded-lg" />
-        <div className="ml-auto h-4 w-16 bg-stone-100/50 rounded" />
-      </div>
-
-      {/* Pipeline Counts Skeleton */}
-      <SectionCard title="Pipeline">
-        <div className="grid grid-cols-4 gap-1.5">
-          {[
-            { label: "Sugg", color: "bg-fuchsia-500/15" },
-            { label: "Queue", color: "bg-indigo-500/15" },
-            { label: "Run", color: "bg-cyan-500/15" },
-            { label: "Done", color: "bg-emerald-500/15" },
-          ].map((s) => (
-            <div key={s.label} className={`text-center p-2 rounded-lg ${s.color} border border-stone-200/50`}>
-              <p className="text-[9px] uppercase tracking-widest font-semibold text-stone-500">{s.label}</p>
-              <p className="text-xl font-bold text-stone-500 tabular-nums leading-tight mt-0.5">—</p>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-    </>
-  );
-}
-
-// ── New Suspense-wrapped Sections for Streaming ───────────────────────────
-
 export default function Home() {
-  return (
-    <div className="flex flex-col gap-4 page-enter">
-      <PageHeader
-        title="Mission Control"
-        subtitle="Autonomous AI operations dashboard"
-        right={
-          <div className="flex items-center gap-3">
-            <FreshnessIndicator lastUpdate={Date.now()} />
-            <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
-              SYS <HealthDot ok={true} />
-            </div>
-          </div>
-        }
-      />
-
-      {/* Lane Health - separate Suspense for streaming */}
-      <Suspense fallback={<LaneHealthSkeleton />}>
-        <LaneHealthSection />
-      </Suspense>
-
-      {/* Filter Pipeline - separate Suspense for streaming */}
-      <Suspense fallback={<FilterPipelineSkeleton />}>
-        <FilterPipelineSection />
-      </Suspense>
-
-      {/* Main 3-column content */}
-      <Suspense fallback={
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="space-y-3"><div className="h-32 bg-stone-100/30 rounded-lg" /><div className="h-48 bg-stone-100/30 rounded-lg" /></div>
-          <div className="space-y-3"><div className="h-32 bg-stone-100/30 rounded-lg" /><div className="h-24 bg-stone-100/30 rounded-lg" /></div>
-          <div className="space-y-3"><div className="h-40 bg-stone-100/30 rounded-lg" /><div className="h-40 bg-stone-100/30 rounded-lg" /></div>
-        </div>
-      }>
-        <MainContent />
-      </Suspense>
-    </div>
-  );
-}
-
-// ── Lane Health Section ───────────────────────────────────────────────────
-function LaneHealthSection() {
-  const tasks = useQuery(api.tasks.list);
-  const allTasks = useMemo(() => (tasks as Task[] | undefined) ?? [], [tasks]);
-
-  return (
-    <section aria-label="Lane health overview">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">
-        Lane Health
-      </p>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        {LANES.map((lane) => (
-          <LaneHealthStrip
-            key={lane.id}
-            lane={lane}
-            stats={computeLaneStats(allTasks, lane.aliases)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// ── Filter Pipeline Section ───────────────────────────────────────────────
-function FilterPipelineSection() {
-  const tasks = useQuery(api.tasks.list);
-  const allTasks = useMemo(() => (tasks as Task[] | undefined) ?? [], [tasks]);
-
-  const [agentFilter, setAgentFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const filteredTasks = useMemo(() => {
-    return allTasks.filter((t) => {
-      if (agentFilter !== "all" && t.assigned_to?.toLowerCase() !== agentFilter) return false;
-      if (statusFilter !== "all" && t.status !== statusFilter) return false;
-      if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      return true;
-    });
-  }, [allTasks, agentFilter, statusFilter, searchQuery]);
-
-  const pCounts = {
-    suggested: filteredTasks.filter((t) => t.status === "suggested").length,
-    backlog: filteredTasks.filter((t) => t.status === "backlog").length,
-    running: filteredTasks.filter((t) => t.status === "in_progress").length,
-    done: filteredTasks.filter((t) => t.status === "done").length,
-  };
-
-  return (
-    <>
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-2 p-2.5 panel-glass">
-        <FilterInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search tasks..."
-          className="text-xs"
-        />
-        <FilterSelect value={agentFilter} onChange={setAgentFilter} ariaLabel="Filter by agent" className="py-1.5">
-          <option value="all">All agents</option>
-          <option value="sam">Sam</option>
-          <option value="lyra">Lyra</option>
-          <option value="alex">Alex</option>
-          <option value="nova">Nova</option>
-          <option value="ops">Ops</option>
-        </FilterSelect>
-        <FilterSelect value={statusFilter} onChange={setStatusFilter} ariaLabel="Filter by status" className="py-1.5">
-          <option value="all">All status</option>
-          <option value="suggested">Suggested</option>
-          <option value="backlog">Backlog</option>
-          <option value="in_progress">Running</option>
-          <option value="blocked">Blocked</option>
-          <option value="done">Done</option>
-        </FilterSelect>
-        {(agentFilter !== "all" || statusFilter !== "all" || searchQuery) && (
-          <button
-            onClick={() => { setAgentFilter("all"); setStatusFilter("all"); setSearchQuery(""); }}
-            className="btn-ghost text-[10px]"
-            aria-label="Clear filters"
-          >
-            ✕ Clear
-          </button>
-        )}
-        <span className="ml-auto text-[10px] text-stone-500 tabular-nums">
-          {filteredTasks.length} tasks
-        </span>
-      </div>
-
-      {/* Pipeline Counts */}
-      <SectionCard title="Pipeline">
-        <div className="grid grid-cols-4 gap-1.5">
-          {[
-            { key: "suggested", label: "Sugg", color: "text-fuchsia-300", bg: "bg-fuchsia-500/15 border border-fuchsia-500/25", n: pCounts.suggested },
-            { key: "backlog", label: "Queue", color: "text-indigo-300", bg: "bg-indigo-500/15 border border-indigo-500/25", n: pCounts.backlog },
-            { key: "running", label: "Run", color: "text-cyan-300", bg: "bg-cyan-500/15 border border-cyan-500/25", n: pCounts.running },
-            { key: "done", label: "Done", color: "text-emerald-300", bg: "bg-emerald-500/15 border border-emerald-500/25", n: pCounts.done },
-          ].map((s) => (
-            <Link
-              key={s.key}
-              href={"/tasks?status=" + (s.key === "running" ? "in_progress" : s.key)}
-              className={"text-center p-2 rounded-lg " + s.bg + " hover:brightness-110 transition-all duration-150"}
-              aria-label={s.label + ": " + s.n + " tasks"}
-            >
-              <p className={"text-[9px] uppercase tracking-widest font-semibold " + s.color}>{s.label}</p>
-              <p className="text-xl font-bold text-stone-800 tabular-nums leading-tight mt-0.5">{s.n}</p>
-            </Link>
-          ))}
-        </div>
-      </SectionCard>
-    </>
-  );
-}
-
-// ── Main Content Section (renamed from HomeContent) ───────────────────────
-function MainContent() {
   const tasks = useQuery(api.tasks.list);
   const [autonomy, setAutonomy] = useState<AutonomyStatus | null>(null);
-  const [capital, setCapital] = useState<CapitalStatus | null>(null);
+  const [capital,  setCapital]  = useState<CapitalStatus  | null>(null);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
 
-  const [agentFilter, setAgentFilter] = useState("all");
+  const [agentFilter,  setAgentFilter]  = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery,  setSearchQuery]  = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -1000,69 +766,103 @@ function MainContent() {
   return (
     <div className="flex flex-col gap-4 page-enter">
 
-      {/* ── Header ── */}
-      <PageHeader
-        title="Mission Control"
-        subtitle="Autonomous AI operations dashboard"
-        right={
-          <>
-            <FreshnessIndicator lastUpdate={lastUpdate} />
-            <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
-              SYS <HealthDot ok={autonomy?.ok ?? false} />
-            </div>
-          </>
-        }
-      />
+      {/* ── STATUS HERO — answers "Is everything OK?" at a glance ── */}
+      <div className={`status-hero ${
+        autonomy?.workflowHealth?.severity === "critical" || (autonomy?.workflowHealth?.criticalAlerts?.length ?? 0) > 0
+          ? "status-hero--crit"
+          : (autonomy?.workflowHealth?.alerts?.length ?? 0) > 0 || !autonomy?.ok
+          ? "status-hero--warn"
+          : "status-hero--ok"
+      }`}>
+        <div className="status-hero__indicator">
+          {(autonomy?.workflowHealth?.criticalAlerts?.length ?? 0) > 0
+            ? "✕"
+            : (autonomy?.workflowHealth?.alerts?.length ?? 0) > 0
+            ? "!"
+            : "✓"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-bold m-0 leading-tight" style={{ color: "var(--text-primary)" }}>
+            {(autonomy?.workflowHealth?.criticalAlerts?.length ?? 0) > 0
+              ? "Critical Issues Detected"
+              : (autonomy?.workflowHealth?.alerts?.length ?? 0) > 0
+              ? "Attention Required"
+              : "All Systems Operational"}
+          </h1>
+          <p className="text-sm m-0 mt-1" style={{ color: "var(--text-secondary)" }}>
+            {autonomy?.total ?? 0} tasks · {pCounts.running} running · {allIncidents.length} incidents
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <FreshnessIndicator lastUpdate={lastUpdate} />
+          <div className="flex items-center gap-1.5" style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
+            SYS <HealthDot ok={autonomy?.ok ?? false} />
+          </div>
+        </div>
+      </div>
 
-      {/* ── True Blocker Alert Banner ── */}
+      {/* ── TRUE BLOCKER ALERT ── */}
       <TrueBlockerBanner tasks={allTasks} />
 
-      {/* ── 3-Column Grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* ── BENTO GRID ── */}
+      <div className="bento-grid bento-animate">
 
-        {/* LEFT */}
-        <div className="space-y-3">
+        {/* Row 1: Pipeline (wide) + Lane Health (narrow) */}
+        <div className="bento-wide">
           <SectionCard title="Pipeline">
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-4 gap-2">
               {[
-                { key: "suggested", label: "Sugg",  color: "text-fuchsia-300", bg: "bg-fuchsia-500/15 border border-fuchsia-500/25", n: pCounts.suggested },
-                { key: "backlog",   label: "Queue", color: "text-indigo-300",  bg: "bg-indigo-500/15 border border-indigo-500/25",   n: pCounts.backlog   },
-                { key: "running",   label: "Run",   color: "text-cyan-300",    bg: "bg-cyan-500/15 border border-cyan-500/25",        n: pCounts.running   },
-                { key: "done",      label: "Done",  color: "text-emerald-300", bg: "bg-emerald-500/15 border border-emerald-500/25",  n: pCounts.done      },
+                { key: "suggested", label: "Suggested", color: "var(--lyra-start)", n: pCounts.suggested },
+                { key: "backlog",   label: "Queue",     color: "var(--sam-start)",  n: pCounts.backlog },
+                { key: "running",   label: "Running",   color: "var(--status-info-text)", n: pCounts.running },
+                { key: "done",      label: "Done",      color: "var(--status-ok-text)",   n: pCounts.done },
               ].map((s) => (
                 <Link
                   key={s.key}
                   href={`/tasks?status=${s.key === "running" ? "in_progress" : s.key}`}
-                  className={`text-center p-2 rounded-lg ${s.bg} hover:brightness-110 transition-all duration-150`}
-                  aria-label={`${s.label}: ${s.n} tasks`}
+                  className="text-center p-3 rounded-xl border transition-all duration-150 hover:shadow-md"
+                  style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
                 >
-                  <p className={`text-[9px] uppercase tracking-widest font-semibold ${s.color}`}>{s.label}</p>
-                  <p className="text-xl font-bold text-stone-800 tabular-nums leading-tight mt-0.5">{s.n}</p>
+                  <p className="text-xs uppercase tracking-widest font-semibold mb-1" style={{ color: s.color }}>{s.label}</p>
+                  <p className="text-2xl font-bold tabular-nums leading-tight metric-animate" style={{ color: "var(--text-primary)" }}>{s.n}</p>
                 </Link>
               ))}
             </div>
           </SectionCard>
+        </div>
 
-          {/* Agent mini-panels */}
+        <div className="bento-narrow">
+          <section className="panel-glass p-3" aria-label="Lane health overview">
+            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>Lane Health</p>
+            <div className="space-y-2">
+              {LANES.map((lane) => (
+                <LaneHealthStrip key={lane.id} lane={lane} stats={computeLaneStats(allTasks, lane.aliases)} />
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* Row 2: Agents (half) + Incidents (half) */}
+        <div className="bento-half">
           <div className="grid grid-cols-2 gap-2">
-            <section className="panel-glass p-2.5">
+            <section className="panel-glass p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <AgentBadge agent="sam" size="xs" />
-                <span className="text-[9px] text-stone-500">Ops</span>
+                <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>Ops</span>
                 <HealthDot ok />
               </div>
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-2 gap-1.5">
                 <MetricCard label="Tasks" value={autonomy?.byAssignee?.sam ?? "—"} />
-                <MetricCard label="Runs"  value={autonomy?.pluginMetrics?.totalExecutions ?? "—"} />
+                <MetricCard label="Runs" value={autonomy?.pluginMetrics?.totalExecutions ?? "—"} />
               </div>
             </section>
-            <section className="panel-glass p-2.5">
+            <section className="panel-glass p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <AgentBadge agent="lyra" size="xs" />
-                <span className="text-[9px] text-stone-500">Capital</span>
+                <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>Capital</span>
                 <HealthDot ok={capital?.portfolio?.status === "ok"} />
               </div>
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-2 gap-1.5">
                 <MetricCard
                   label="Equity"
                   value={capital?.portfolio ? `$${(capital.portfolio.totalEquity / 1000).toFixed(0)}k` : "—"}
@@ -1071,93 +871,108 @@ function MainContent() {
                 />
                 <MetricCard
                   label="PnL"
-                  value={capital?.portfolio
-                    ? `${capital.portfolio.totalPnlPct >= 0 ? "+" : ""}${capital.portfolio.totalPnlPct.toFixed(0)}%`
-                    : "—"}
+                  value={capital?.portfolio ? `${capital.portfolio.totalPnlPct >= 0 ? "+" : ""}${capital.portfolio.totalPnlPct.toFixed(0)}%` : "—"}
                 />
               </div>
             </section>
           </div>
-
-          <div className="grid grid-cols-3 gap-1.5">
-            <MetricCard label="Total"     value={autonomy?.total ?? "—"} />
-            <MetricCard label="Plugins"   value={autonomy?.pluginMetrics?.byPlugin?.length ?? "—"} />
+          <div className="grid grid-cols-3 gap-1.5 mt-2">
+            <MetricCard label="Total" value={autonomy?.total ?? "—"} />
+            <MetricCard label="Plugins" value={autonomy?.pluginMetrics?.byPlugin?.length ?? "—"} />
             <MetricCard label="Positions" value={capital?.portfolio?.positions?.length ?? "—"} />
           </div>
+        </div>
 
-          {/* Backlog aging */}
+        <div className="bento-half">
+          <IncidentTimeline incidents={allIncidents} />
+        </div>
+
+        {/* Row 3: Queues (wide) + Backlog Aging (narrow) */}
+        <div className="bento-wide">
+          <div className="grid grid-cols-3 gap-2">
+            <QueueSection label="Running" tasks={running} maxH="140px" />
+            <QueueSection label="Backlog" tasks={backlog} maxH="120px" />
+            <QueueSection label="Suggested" tasks={suggested.slice(0, 5)} maxH="100px" />
+          </div>
+        </div>
+
+        <div className="bento-narrow">
           <BacklogAgingPanel tasks={filteredTasks} />
         </div>
 
-        {/* CENTER */}
-        <div className="space-y-3">
-          <QueueSection
-            label="Running"
-            dotColor="bg-cyan-400 animate-pulse"
-            badgeColor="text-cyan-300 bg-cyan-500/20"
-            tasks={running}
-            maxH="140px"
-          />
-          <QueueSection
-            label="Backlog"
-            dotColor="bg-indigo-400"
-            badgeColor="text-indigo-300 bg-indigo-500/20"
-            tasks={backlog}
-            maxH="110px"
-          />
-          <QueueSection
-            label="Suggested"
-            dotColor="bg-fuchsia-400"
-            badgeColor="text-fuchsia-300 bg-fuchsia-500/20"
-            tasks={suggested.slice(0, 5)}
-            maxH="90px"
-          />
+        {/* Row 4: Filter + Completed + Plugins */}
+        <div className="bento-full">
+          <div className="flex flex-wrap items-center gap-2 p-3 panel-glass">
+            <FilterInput value={searchQuery} onChange={setSearchQuery} placeholder="Search tasks..." />
+            <FilterSelect value={agentFilter} onChange={setAgentFilter} ariaLabel="Filter by agent" className="py-1.5">
+              <option value="all">All agents</option>
+              <option value="sam">Sam</option>
+              <option value="lyra">Lyra</option>
+              <option value="alex">Alex</option>
+              <option value="nova">Nova</option>
+              <option value="ops">Ops</option>
+            </FilterSelect>
+            <FilterSelect value={statusFilter} onChange={setStatusFilter} ariaLabel="Filter by status" className="py-1.5">
+              <option value="all">All status</option>
+              <option value="suggested">Suggested</option>
+              <option value="backlog">Backlog</option>
+              <option value="in_progress">Running</option>
+              <option value="blocked">Blocked</option>
+              <option value="done">Done</option>
+            </FilterSelect>
+            {(agentFilter !== "all" || statusFilter !== "all" || searchQuery) && (
+              <button onClick={() => { setAgentFilter("all"); setStatusFilter("all"); setSearchQuery(""); }} className="btn-ghost" aria-label="Clear filters">
+                ✕ Clear
+              </button>
+            )}
+            <span className="ml-auto tabular-nums" style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
+              {filteredTasks.length} tasks
+            </span>
+          </div>
         </div>
 
-        {/* RIGHT */}
-        <div className="space-y-3">
-          {/* Incident Timeline */}
-          <IncidentTimeline incidents={allIncidents} />
-
-          {/* Done */}
-          <section className="panel-glass p-2.5">
-            <div className="flex items-center justify-between mb-2 px-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Completed</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-[9px] text-emerald-300 font-bold border border-emerald-500/30">
+        <div className="bento-half">
+          <section className="panel-glass p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Completed</span>
+              <span className="px-2 py-0.5 rounded-md text-xs font-bold" style={{ background: "var(--status-ok-bg)", color: "var(--status-ok-text)", border: "1px solid var(--status-ok-border)" }}>
                 {done.length}
               </span>
             </div>
             <div className="max-h-[200px] overflow-y-auto">
-              {done.length > 0 ? (
-                done.map((t) => <TaskRow key={t._id} task={t} showOwner showAge={false} />)
-              ) : (
-                <p className="text-[10px] text-stone-500 text-center py-4">Nothing yet</p>
+              {done.length > 0 ? done.map((t) => <TaskRow key={t._id} task={t} showOwner showAge={false} />) : (
+                <p className="text-center py-4" style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>Nothing yet</p>
               )}
             </div>
           </section>
+        </div>
 
-          {/* Plugin sparklines */}
+        <div className="bento-half">
           {autonomy?.pluginMetrics?.byPlugin && autonomy.pluginMetrics.byPlugin.length > 0 && (
-            <section className="panel-glass p-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">Plugins</p>
+            <section className="panel-glass p-3">
+              <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>Plugins</p>
               <div className="space-y-1.5">
                 {autonomy.pluginMetrics.byPlugin.slice(0, 5).map((item) => {
                   const maxVal = Math.max(...item.sparkline.filter((x) => x > 0), 1);
                   return (
                     <div key={item.plugin} className="flex items-center gap-2">
-                      <span className="text-[9px] text-stone-500 truncate w-[80px] shrink-0" title={item.plugin}>
+                      <span className="truncate w-[80px] shrink-0" style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }} title={item.plugin}>
                         {item.plugin.split("/").pop()}
                       </span>
-                      <div className="flex-1 flex items-end gap-px h-3">
+                      <div className="flex-1 flex items-end gap-px h-4">
                         {item.sparkline.slice(0, 14).map((v, i) => (
                           <div
                             key={i}
-                            className={`flex-1 rounded-sm ${v > 0 ? "bg-emerald-500/60" : "bg-stone-100"}`}
-                            style={{ height: `${v > 0 ? Math.max(20, (v / maxVal) * 100) : 20}%` }}
+                            className="flex-1 rounded-sm transition-all"
+                            style={{
+                              height: `${v > 0 ? Math.max(20, (v / maxVal) * 100) : 20}%`,
+                              background: v > 0 ? "var(--status-ok-text)" : "var(--surface-2)",
+                              opacity: v > 0 ? 0.6 : 0.3,
+                            }}
                           />
                         ))}
                       </div>
-                      <span className="text-[9px] text-stone-500 tabular-nums w-10 text-right shrink-0">
+                      <span className="tabular-nums w-10 text-right shrink-0" style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
                         {item.success}/{item.runs}
                       </span>
                     </div>
@@ -1167,17 +982,7 @@ function MainContent() {
             </section>
           )}
         </div>
-      </div>
 
-      {/* ── Mission Footer ── */}
-      <div className="panel-glass bg-gradient-to-r from-indigo-500/8 to-cyan-500/8 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-stone-500 font-semibold">Mission</p>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Autonomous AI ops — reduce manual work, ship value 24/7, build compounding systems.
-          </p>
-        </div>
-        <Link href="/control" className="btn-ghost text-[10px] shrink-0">Control →</Link>
       </div>
     </div>
   );

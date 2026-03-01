@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
-import Sidebar from "@/components/Sidebar";
+import TopNav from "@/components/TopNav";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import CommandPalette from "@/components/CommandPalette";
 import { MissionControlProvider } from "@/contexts";
@@ -22,10 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ height: "100%", overflow: "hidden" }}>
         <ConvexClientProvider>
           <MissionControlProvider>
-            {/* app-shell: height:100vh, overflow:hidden, flex row */}
             <div className="app-shell">
-              <Sidebar />
-              {/* content-wrap: flex:1, min-height:0, overflow-y:auto */}
+              <TopNav />
               <main className="content-wrap">{children}</main>
             </div>
             <KeyboardShortcuts />
