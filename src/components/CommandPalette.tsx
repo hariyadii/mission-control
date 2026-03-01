@@ -7,6 +7,9 @@ import { useQuery } from "convex/react";
 // Use relative import for Convex API
 const { api } = require("../../convex/_generated/api");
 
+// Import Tooltip component
+import { Tooltip } from "./ui";
+
 type Command = {
   id: string;
   label: string;
@@ -21,6 +24,21 @@ type Task = {
   title: string;
   assigned_to: string;
   status: string;
+};
+
+// Full shortcut mapping for hover tooltips
+const SHORTCUT_FULL_MAP: Record<string, string> = {
+  "G O": "Ctrl+G then O",
+  "G T": "Ctrl+G then T",
+  "G C": "Ctrl+G then C",
+  "G M": "Ctrl+G then M",
+  "G Y": "Ctrl+G then Y",
+  "G A": "Ctrl+G then A",
+  "G N": "Ctrl+G then N",
+  "G U": "Ctrl+G then U",
+  "N": "Ctrl+N",
+  "R": "Ctrl+R",
+  "?": "Shift+/",
 };
 
 export default function CommandPalette() {
@@ -231,9 +249,11 @@ export default function CommandPalette() {
                     >
                       <span className="text-sm">{cmd.label}</span>
                       {cmd.shortcut && (
-                        <kbd className="rounded bg-stone-100 px-2 py-0.5 text-xs font-mono text-stone-500 border border-stone-300">
-                          {cmd.shortcut}
-                        </kbd>
+                        <Tooltip content={SHORTCUT_FULL_MAP[cmd.shortcut] || cmd.shortcut}>
+                          <kbd className="rounded bg-stone-100 px-2 py-0.5 text-xs font-mono text-stone-500 border border-stone-300 cursor-help">
+                            {cmd.shortcut}
+                          </kbd>
+                        </Tooltip>
                       )}
                     </button>
                   );
